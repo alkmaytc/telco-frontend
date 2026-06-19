@@ -7,11 +7,25 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Kendi belirleyeceğin renk kodlarını ileride buraya yazacaksın kanka:
-        'custom-bg': '#000000',      // Örn: Ana arka plan rengin
-        'custom-card': '#111111',    // Örn: Kart ve panel rengin
-        'custom-fiber': '#222222',   // Örn: Haritadaki fiber hattı rengin
-        'custom-vdsl': '#333333',    // Örn: Haritadaki vdsl hattı rengin
+        // Modern Heritage Palette
+        'telco-bg': '#fbf9f8',         // Vintage krem kağıt arka planı
+        'telco-primary': '#041632',    // Derin endüstriyel lacivert (Yazılar ve sınırlar)
+        'telco-primary-container': '#1b2b48',
+        'telco-secondary': '#77574d',  // Retro kiremit / kahve tonu
+        'telco-container': '#f0eded',  // Panel iç dolgu rengi
+        'telco-accent': '#b08d48',     // Sinyal ve premium altın/bakır vurgusu
+        'telco-error': '#ba1a1a',      // Kritik hata ve doluluk uyarısı
+      },
+      fontFamily: {
+        sans: ['Hanken Grotesk', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
+      borderWidth: {
+        '2': '2px', // Tüm brutalist kartlar ve inputlar için standart kalınlık
+      },
+      boxShadow: {
+        // Retro donanım hissi veren sert, bulanıklaşmayan gölge
+        'retro': '2px 2px 0px 0px #041632',
       }
     },
   },

@@ -1,17 +1,18 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Inquiry from './pages/Inquiry';
+import OrderTracking from './pages/OrderTracking';
+import AdminPanel from './pages/AdminPanel';
 
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
-      <div className="text-center">
-        <h1 className="text-4xl font-extrabold tracking-tight mb-2">
-          Telco Altyapı Fizibilite
-        </h1>
-        <p className="text-gray-400">
-          Adım adım frontend mimarisi hazır. Sıra tasarımda!
-        </p>
-      </div>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Inquiry />} />
+        <Route path="/track/:orderId" element={<OrderTracking />} />
+        <Route path="/admin" element={<AdminPanel />} />
+      </Routes>
+    </Router>
   );
 }
 
