@@ -59,29 +59,80 @@ export default function OrderTracking() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', flexDirection: 'column', fontFamily: 'Hanken Grotesk, sans-serif' }}>
       
+      {/* RESPONSIVE CSS INJECTION */}
+      <style>{`
+        .responsive-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        .tracking-main-grid {
+          display: grid;
+          grid-template-columns: repeat(12, minmax(0, 1fr));
+          width: 100%;
+          flex: 1;
+        }
+        .tracking-panel-left {
+          grid-column: span 7 / span 7;
+          border-right: 2px solid #041632;
+        }
+        .tracking-panel-right {
+          grid-column: span 5 / span 5;
+        }
+
+        /* TABLET & MOBİL GÖRÜNÜM */
+        @media (max-width: 1024px) {
+          .tracking-main-grid {
+            display: flex;
+            flex-direction: column;
+          }
+          .tracking-panel-left {
+            border-right: none;
+            border-bottom: 2px solid #041632;
+          }
+          .tracking-panel-right {
+            min-height: 400px; /* Terminalin mobilde çok basık olmaması için */
+          }
+        }
+
+        /* DAR MOBİL EKRANLAR */
+        @media (max-width: 768px) {
+          .responsive-header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .refresh-btn {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+      `}</style>
+
       {/* HEADER */}
-      <header style={{ borderBottom: '2px solid #041632', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+      <header className="responsive-header" style={{ borderBottom: '2px solid #041632', padding: '16px 24px', backgroundColor: '#ffffff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <button onClick={() => navigate('/')} style={{ border: '2px solid #041632', backgroundColor: 'transparent', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
             <ArrowLeft style={{ width: '16px', height: '16px' }} />
           </button>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: '800', letterSpacing: '-0.05em' }}>tel-co</span>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', border: '2px solid #041632', padding: '2px 8px', backgroundColor: '#fed3c7', fontWeight: '700' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', border: '2px solid #041632', padding: '4px 8px', backgroundColor: '#fed3c7', fontWeight: '700' }}>
             ASENKRON TAKİP TERMİNALİ
           </span>
         </div>
         
-        <button onClick={fetchOrderHistory} style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '2px solid #041632', backgroundColor: '#ffffff', padding: '6px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700', cursor: 'pointer', boxShadow: '2px 2px 0px 0px #041632' }}>
+        <button onClick={fetchOrderHistory} className="refresh-btn" style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '2px solid #041632', backgroundColor: '#ffffff', padding: '8px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700', cursor: 'pointer', boxShadow: '2px 2px 0px 0px #041632' }}>
           <RefreshCw style={{ width: '14px', height: '14px' }} className={loading ? 'animate-spin' : ''} />
           VERİYİ TAZELE
         </button>
       </header>
 
       {/* WORKSPACE */}
-      <main style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', width: '100%' }}>
+      <main className="tracking-main-grid">
         
         {/* ZAMAN TÜNELİ */}
-        <section style={{ gridColumn: 'span 7 / span 7', padding: '32px', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '2px solid #041632' }}>
+        <section className="tracking-panel-left" style={{ padding: '32px', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff' }}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', borderBottom: '2px dashed #041632', paddingBottom: '16px' }}>
               <div>
@@ -110,7 +161,7 @@ export default function OrderTracking() {
                 
                 return (
                   <div key={logItem.id || index} style={{ display: 'flex', gap: '16px', position: 'relative', zIndex: 2 }}>
-                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #041632', backgroundColor: isSuccess ? '#006400' : (!isCurrent ? '#041632' : '#fed3c7'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '24px', height: '24px', flexShrink: 0, borderRadius: '50%', border: '2px solid #041632', backgroundColor: isSuccess ? '#006400' : (!isCurrent ? '#041632' : '#fed3c7'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {!isCurrent || isSuccess ? (
                         <CheckCircle2 style={{ width: '14px', height: '14px', color: '#ffffff' }} />
                       ) : (
@@ -119,7 +170,7 @@ export default function OrderTracking() {
                     </div>
 
                     <div style={{ flex: 1, border: '2px solid #041632', padding: '12px 16px', backgroundColor: isSuccess ? '#e6ffe6' : (isCurrent ? '#ffffff' : '#fbf9f8'), boxShadow: isCurrent ? '3px 3px 0px 0px #041632' : 'none' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '4px' }}>
                         <h3 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '800', margin: 0, color: isSuccess ? '#006400' : '#041632' }}>{logItem.status || 'SİSTEM İŞLEMİ'}</h3>
                         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: '#666' }}>
                           {logItem.changedAt ? new Date(logItem.changedAt).toLocaleTimeString() : '--:--'}
@@ -137,7 +188,7 @@ export default function OrderTracking() {
         </section>
 
         {/* TERMİNAL LOGLARI */}
-        <section style={{ gridColumn: 'span 5 / span 5', display: 'flex', flexDirection: 'column', backgroundColor: '#041632' }}>
+        <section className="tracking-panel-right" style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#041632' }}>
           <div style={{ flex: 1, color: '#fbf9f8', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(251, 249, 248, 0.2)', paddingBottom: '8px' }}>
               <Terminal style={{ width: '16px', height: '16px', color: '#fed3c7' }} />
@@ -146,7 +197,7 @@ export default function OrderTracking() {
 
             <div style={{ flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', lineHeight: '1.4' }}>
               {history.map((logItem, index) => (
-                <div key={index} style={{ color: logItem.status === 'ONAYLANDI' ? '#4ade80' : (logItem.status?.includes('ERROR') ? 'red' : '#b7c7eb') }}>
+                <div key={index} style={{ color: logItem.status === 'ONAYLANDI' ? '#4ade80' : (logItem.status?.includes('ERROR') ? 'red' : '#b7c7eb'), wordBreak: 'break-word' }}>
                   [{logItem.changedAt ? new Date(logItem.changedAt).toLocaleTimeString() : 'TIME'}] [DB] STATUS: {logItem.status} - {logItem.description}
                 </div>
               ))}

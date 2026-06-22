@@ -10,7 +10,6 @@ export default function AdminPanel() {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [targetNodeId, setTargetNodeId] = useState('');
   
-  // CANLI VERİLERİ TUTACAĞIMIZ STATE
   const [data, setData] = useState(null);
 
   // --- GÜVENLİK ---
@@ -61,7 +60,60 @@ export default function AdminPanel() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', flexDirection: 'column', fontFamily: 'Hanken Grotesk, sans-serif' }}>
       
-      <header style={{ borderBottom: '2px solid #041632', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: '20px', backgroundColor: '#ffffff' }}>
+      {/* RESPONSIVE CSS INJECTION */}
+      <style>{`
+        .responsive-header {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          flex-wrap: wrap;
+        }
+        .dashboard-main-grid {
+          display: grid;
+          grid-template-columns: repeat(12, minmax(0, 1fr));
+          gap: 24px;
+        }
+        .panel-left {
+          grid-column: span 5 / span 5;
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+        .panel-right {
+          grid-column: span 7 / span 7;
+        }
+        .nodes-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        /* TABLET & MOBİL GÖRÜNÜM */
+        @media (max-width: 1024px) {
+          .dashboard-main-grid {
+            display: flex;
+            flex-direction: column;
+          }
+          .panel-left, .panel-right {
+            width: 100%;
+          }
+        }
+
+        /* DAR MOBİL EKRANLAR */
+        @media (max-width: 768px) {
+          .nodes-grid {
+            grid-template-columns: 1fr; /* Dolaplar mobilde alt alta gelsin */
+          }
+          .stat-card {
+            padding: 16px !important;
+          }
+          .stat-card-title {
+            font-size: 16px !important;
+          }
+        }
+      `}</style>
+
+      <header className="responsive-header" style={{ borderBottom: '2px solid #041632', padding: '16px 24px', backgroundColor: '#ffffff' }}>
         <button onClick={() => navigate('/')} style={{ border: '2px solid #041632', backgroundColor: 'transparent', padding: '6px', cursor: 'pointer' }}>
           <ArrowLeft style={{ width: '16px', height: '16px' }} />
         </button>
@@ -78,34 +130,43 @@ export default function AdminPanel() {
         </section>
 
         {/* ROW 2: İŞLEM VE TABLOLAR */}
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '24px' }}>
+        <section className="dashboard-main-grid">
           
-          <div style={{ gridColumn: 'span 5', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* SOL PANEL */}
+          <div className="panel-left">
             {/* KAPASİTE ENJEKSİYONU */}
             <div style={{ border: '2px solid #041632', padding: '24px', backgroundColor: '#fff' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '900', marginBottom: '16px' }}>DİNAMİK KAPASİTE ENJEKSİYONU</h2>
-              <input type="number" value={targetNodeId} onChange={(e) => setTargetNodeId(e.target.value)} placeholder="Node ID" style={{ width: '100%', padding: '12px', border: '2px solid #041632', marginBottom: '10px' }} />
-              <button onClick={handleInjectCapacity} style={{ width: '100%', padding: '12px', backgroundColor: '#041632', color: '#fff' }}>+5 PORT EKLE</button>
+              <input type="number" value={targetNodeId} onChange={(e) => setTargetNodeId(e.target.value)} placeholder="Node ID" style={{ width: '100%', padding: '12px', border: '2px solid #041632', marginBottom: '10px', fontFamily: 'JetBrains Mono, monospace' }} />
+              <button onClick={handleInjectCapacity} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#041632', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
+                {loading ? 'İŞLENİYOR...' : '+5 PORT EKLE'}
+              </button>
             </div>
 
             {/* SİPARİŞLER */}
-            <div style={{ border: '2px solid #041632', padding: '24px', flex: 1 }}>
-              <h2 style={{ fontSize: '16px', fontWeight: '900' }}>RABBITMQ BEKLEYENLER</h2>
-              {data.pendingOrders.map(o => (
-                <div key={o.id} style={{ borderBottom: '1px solid #ccc', padding: '8px 0', fontSize: '11px', fontFamily: 'JetBrains Mono' }}>
-                  #{o.id} - {o.bbk} - {o.pkg}
-                </div>
-              ))}
+            <div style={{ border: '2px solid #041632', padding: '24px', flex: 1, backgroundColor: '#fff' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '12px' }}>RABBITMQ BEKLEYENLER</h2>
+              <div style={{ overflowX: 'auto' }}>
+                {data.pendingOrders.map(o => (
+                  <div key={o.id} style={{ borderBottom: '1px solid #eae8e7', padding: '8px 0', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>
+                    <strong>#{o.id}</strong> - {o.bbk} - {o.pkg}
+                  </div>
+                ))}
+                {data.pendingOrders.length === 0 && (
+                  <div style={{ fontSize: '11px', fontFamily: 'JetBrains Mono, monospace', color: '#666' }}>Kuyruk boş.</div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div style={{ gridColumn: 'span 7', border: '2px solid #041632', padding: '24px' }}>
+          {/* SAĞ PANEL */}
+          <div className="panel-right" style={{ border: '2px solid #041632', padding: '24px', backgroundColor: '#fff' }}>
             <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '16px' }}>SAHA DOLAPLARI</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="nodes-grid">
               {data.nodes.map(n => (
                 <div key={n.id} style={{ border: '2px solid #041632', padding: '12px', backgroundColor: n.color }}>
-                  <p style={{ fontWeight: 'bold' }}>{n.name}</p>
-                  <p style={{ fontSize: '12px' }}>{n.capacity} PORT | {n.status}</p>
+                  <p style={{ fontWeight: 'bold', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px' }}>{n.name}</p>
+                  <p style={{ fontSize: '12px', marginTop: '4px' }}>{n.capacity} PORT | <strong>{n.status}</strong></p>
                 </div>
               ))}
             </div>
@@ -118,11 +179,11 @@ export default function AdminPanel() {
 
 function StatCard({icon, label, value, color}) {
   return (
-    <div style={{ border: '2px solid #041632', padding: '20px', display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: '#fff' }}>
+    <div className="stat-card" style={{ border: '2px solid #041632', padding: '20px', display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632' }}>
       <div style={{ border: '2px solid #041632', padding: '12px', backgroundColor: color }}>{icon}</div>
       <div>
-        <span style={{ fontSize: '10px', color: '#666' }}>{label}</span>
-        <div style={{ fontSize: '20px', fontWeight: '900' }}>{value}</div>
+        <span style={{ fontSize: '10px', color: '#666', fontFamily: 'JetBrains Mono, monospace', fontWeight: 'bold' }}>{label}</span>
+        <div className="stat-card-title" style={{ fontSize: '20px', fontWeight: '900', fontFamily: 'JetBrains Mono, monospace' }}>{value}</div>
       </div>
     </div>
   );

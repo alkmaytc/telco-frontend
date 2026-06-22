@@ -6,7 +6,6 @@ import { AddressService, FeasibilityService, OrderService } from '../services/ap
 
 const containerStyle = { width: '100%', height: '100%' };
 
-// Jüri için haritayı daha anlaşılır (standart) yapmaya karar vermiştik
 const retroMapStyle = []; 
 
 export default function Inquiry() {
@@ -20,7 +19,6 @@ export default function Inquiry() {
   const [errorMsg, setErrorMsg] = useState('');
   const [searchSerial, setSearchSerial] = useState('');
 
-  // --- DİNAMİK ADRES ZİNCİRİ ---
   const [districts, setDistricts] = useState([]);
   const [neighborhoods, setNeighborhoods] = useState([]);
   const [streets, setStreets] = useState([]);
@@ -34,8 +32,6 @@ export default function Inquiry() {
   });
 
   const [feasibility, setFeasibility] = useState(null);
-  
-  // ÇİFT TIKLAMA KORUMASI İÇİN YENİ STATE
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -99,10 +95,9 @@ export default function Inquiry() {
     }
   };
 
-  // GÜNCELLENMİŞ SİPARİŞ FONKSİYONU (ÇİFT TIKLAMA KORUMALI)
   const handleOrderInitiate = async (pkg) => {
     try {
-      setIsSubmitting(true); // BUTONU KİLİTLE
+      setIsSubmitting(true); 
 
       const orderRequestDTO = {
         bbk: feasibility.bbk,
@@ -119,7 +114,7 @@ export default function Inquiry() {
     } catch (error) {
       console.error("Sipariş oluşturulamadı:", error);
       alert("Sipariş işlemi sırasında hata oluştu. Lütfen tekrar deneyin.");
-      setIsSubmitting(false); // HATA OLURSA KİLİDİ AÇ
+      setIsSubmitting(false); 
     }
   };
 
@@ -133,9 +128,48 @@ export default function Inquiry() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', flexDirection: 'column', fontFamily: 'Hanken Grotesk, sans-serif' }}>
       
+      {/* RESPONSIVE CSS INJECTION */}
+      <style>{`
+        .responsive-header {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .main-layout {
+          display: grid;
+          grid-template-columns: repeat(12, minmax(0, 1fr));
+          width: 100%;
+          flex: 1;
+        }
+        .left-panel {
+          grid-column: span 3 / span 3;
+          border-right: 2px solid #041632;
+        }
+        .right-panel {
+          grid-column: span 9 / span 9;
+        }
+        .map-container {
+          height: 450px;
+        }
+        @media (max-width: 1024px) {
+          .left-panel { grid-column: span 4 / span 4; }
+          .right-panel { grid-column: span 8 / span 8; }
+        }
+        @media (max-width: 768px) {
+          .responsive-header { flex-direction: column; align-items: flex-start; }
+          .search-bar-container { width: 100%; display: flex; }
+          .search-bar-container input { flex: 1; }
+          .main-layout { display: flex; flex-direction: column; }
+          .left-panel { border-right: none; border-bottom: 2px solid #041632; }
+          .map-container { height: 300px; } /* Mobilde harita boyutu küçültüldü */
+        }
+      `}</style>
+
       {/* HEADER */}
-      <header style={{ borderBottom: '2px solid #041632', padding: '16px 24px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+      <header className="responsive-header" style={{ borderBottom: '2px solid #041632', padding: '16px 24px', backgroundColor: '#ffffff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: '800', letterSpacing: '-0.05em' }}>tel-co</span>
           <nav style={{ display: 'flex', gap: '20px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>
             <a href="/" style={{ textDecoration: 'underline', textUnderlineOffset: '6px', textDecorationThickness: '2px', color: '#041632' }}>INVENTORY</a>
@@ -143,25 +177,24 @@ export default function Inquiry() {
           </nav>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div style={{ border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '4px 12px', display: 'flex', alignItems: 'center' }}>
-            <input 
-              type="text" 
-              placeholder="SİPARİŞ ID SORGULA..." 
-              value={searchSerial}
-              onChange={(e) => setSearchSerial(e.target.value)}
-              onKeyDown={handleSerialSearch}
-              style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }}
-            />
-            <Search style={{ width: '14px', height: '14px', cursor: 'pointer' }} onClick={handleSerialSearch} />
-          </div>
+        <div className="search-bar-container" style={{ border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
+          <input 
+            type="text" 
+            placeholder="SİPARİŞ ID SORGULA..." 
+            value={searchSerial}
+            onChange={(e) => setSearchSerial(e.target.value)}
+            onKeyDown={handleSerialSearch}
+            style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }}
+          />
+          <Search style={{ width: '16px', height: '16px', cursor: 'pointer' }} onClick={handleSerialSearch} />
         </div>
       </header>
 
       {/* MAIN LAYOUT */}
-      <main style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', width: '100%' }}>
+      <main className="main-layout">
         
-        <section style={{ gridColumn: 'span 3 / span 3', padding: '32px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#ffffff', position: 'relative', borderRight: '2px solid #041632' }}>
+        {/* SOL PANEL (SORGULAMA) */}
+        <section className="left-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#ffffff', position: 'relative' }}>
           
           {loading && (
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(251, 249, 248, 0.85)', zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>
@@ -187,7 +220,7 @@ export default function Inquiry() {
                 <select 
                   value={selected.district}
                   onChange={(e) => setSelected({...selected, district: e.target.value})}
-                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '8px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
+                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
                 >
                   <option value="">Seçiniz...</option>
                   {districts.map(d => <option key={d} value={d}>{d}</option>)}
@@ -200,7 +233,7 @@ export default function Inquiry() {
                   value={selected.neighborhood}
                   onChange={(e) => setSelected({...selected, neighborhood: e.target.value})}
                   disabled={!selected.district}
-                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.district ? '#fbf9f8' : '#e0e0e0', padding: '8px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
+                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.district ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
                 >
                   <option value="">Seçiniz...</option>
                   {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
@@ -213,7 +246,7 @@ export default function Inquiry() {
                   value={selected.street}
                   onChange={(e) => setSelected({...selected, street: e.target.value})}
                   disabled={!selected.neighborhood}
-                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.neighborhood ? '#fbf9f8' : '#e0e0e0', padding: '8px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
+                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.neighborhood ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
                 >
                   <option value="">Seçiniz...</option>
                   {streets.map(s => <option key={s} value={s}>{s}</option>)}
@@ -226,7 +259,7 @@ export default function Inquiry() {
                   value={selected.bbk}
                   onChange={(e) => setSelected({...selected, bbk: e.target.value})}
                   disabled={!selected.street || buildings.length === 0}
-                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.street ? '#fbf9f8' : '#e0e0e0', padding: '8px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
+                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.street ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
                 >
                   <option value="">Bina Seçiniz...</option>
                   {buildings.map(b => (
@@ -243,19 +276,19 @@ export default function Inquiry() {
 
           <div style={{ borderTop: '2px solid #041632', paddingTop: '20px', marginTop: '24px', display: 'flex', justifyContent: 'space-between', gap: '8px', opacity: feasibility ? 1 : 0.3 }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '14px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '13px' }}>
                 {feasibility ? feasibility.lineQualityPercent : '--'}%
               </div>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', fontWeight: '700', display: 'block' }}>LINE QUALITY</span>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '13px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '12px' }}>
                 {feasibility ? feasibility.snrMarginDb : '--'}dB
               </div>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', fontWeight: '700', display: 'block' }}>SNR MARGIN</span>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '13px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '12px' }}>
                 {feasibility ? feasibility.attenuationDb : '--'}dB
               </div>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', fontWeight: '700', display: 'block' }}>ATTENUAT.</span>
@@ -263,9 +296,10 @@ export default function Inquiry() {
           </div>
         </section>
 
-        <section style={{ gridColumn: 'span 9 / span 9', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff' }}>
+        {/* SAĞ PANEL (HARİTA VE PAKETLER) */}
+        <section className="right-panel" style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff' }}>
           
-          <div style={{ width: '100%', height: '450px', position: 'relative', borderBottom: '2px solid #041632' }}>
+          <div className="map-container" style={{ position: 'relative', borderBottom: '2px solid #041632' }}>
             {isLoaded ? (
               <GoogleMap
                 mapContainerStyle={containerStyle}
@@ -285,17 +319,15 @@ export default function Inquiry() {
             )}
 
             {feasibility && (
-              <div style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: '#ffffff', border: '2px solid #041632', padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', boxShadow: '3px 3px 0px 0px #041632', zIndex: 5, minWidth: '220px' }}>
-                
-                {/* JÜRİ KURTARAN KOPYA KISMI */}
-                <div style={{ fontWeight: '800', marginBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: '#ffffff', border: '2px solid #041632', padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', boxShadow: '3px 3px 0px 0px #041632', zIndex: 5, minWidth: '220px', maxWidth: 'calc(100% - 32px)' }}>
+                <div style={{ fontWeight: '800', marginBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span>💾 NODE: {feasibility.closestNodeName}</span>
-                  <span style={{ color: '#006400', fontSize: '10px', marginLeft: '12px', padding: '2px 4px', border: '1px solid #006400' }}>
+                  <span style={{ color: '#006400', fontSize: '10px', padding: '2px 4px', border: '1px solid #006400', marginTop: '4px' }}>
                     ADMIN ID: {feasibility.closestNodeName ? parseInt(feasibility.closestNodeName.split('-')[2]) - 1000 : '?'}
                   </span>
                 </div>
 
-                <div style={{ fontSize: '11px', color: feasibility.hasEmptyPort ? '#006400' : '#8b0000', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '11px', color: feasibility.hasEmptyPort ? '#006400' : '#8b0000', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: feasibility.hasEmptyPort ? '#006400' : '#8b0000', display: 'inline-block' }}></span>
                   {feasibility.infrastructureType} {feasibility.hasEmptyPort ? 'PORT MÜSAİT' : 'PORT YOK'}
                 </div>
@@ -322,7 +354,6 @@ export default function Inquiry() {
                     <div style={{ borderTop: '1px solid #041632', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>{pkg.price}₺/ay</span>
                       
-                      {/* GÜNCELLENMİŞ BUTON (İşleniyor & Disabled Korumalı) */}
                       <button 
                         onClick={() => handleOrderInitiate(pkg)}
                         disabled={!feasibility.hasEmptyPort || isSubmitting}
@@ -333,7 +364,7 @@ export default function Inquiry() {
                           fontFamily: 'JetBrains Mono, monospace', 
                           fontSize: '11px', 
                           fontWeight: '700', 
-                          padding: '6px 12px', 
+                          padding: '8px 12px', 
                           cursor: (!feasibility.hasEmptyPort || isSubmitting) ? 'not-allowed' : 'pointer',
                           opacity: isSubmitting ? 0.7 : 1
                         }}
