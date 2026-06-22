@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
-import { Search, Loader2, AlertTriangle } from 'lucide-react';
+import { Search, Loader2, AlertTriangle, ListOrdered, ChevronRight } from 'lucide-react';
 import { AddressService, FeasibilityService, OrderService } from '../services/api';
-import { AuthContext } from '../context/AuthContext'; // 🎯 Oturum havuzunu çektik
+import { AuthContext } from '../context/AuthContext'; 
 
 const containerStyle = { width: '100%', height: '100%' };
 
 export default function Inquiry() {
   const navigate = useNavigate();
-  const { user, logout, setRedirectTo } = useContext(AuthContext); // 🎯 Güvenlik state'leri
+  const { user, logout, setRedirectTo } = useContext(AuthContext); 
   
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -34,22 +34,48 @@ export default function Inquiry() {
 
   const [feasibility, setFeasibility] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 🎯 KİŞİSEL VERİ: Kullanıcının geçmiş başvurularını tutacak state
+  const [myOrders, setMyOrders] = useState([]);
 
-  // 🎯 Hafızada bekleyen bir BBK sorgusu var mı kontrolü (Giriş yaptıktan sonra otomatik getirmek için)
+  // 🎯 Akıllı Hafıza Kontrolü: Giriş/Kayıt sonrası yarım kalan siparişi tamamla
   useEffect(() => {
     const savedBbk = localStorage.getItem('temp_bbk');
+    const pendingPkgName = localStorage.getItem('pending_pkg_name');
+
     if (savedBbk && !feasibility) {
       setLoading(true);
       FeasibilityService.checkByBbk(savedBbk)
         .then(response => {
           setFeasibility(response.data);
           setSelected(prev => ({ ...prev, bbk: savedBbk }));
-          localStorage.removeItem('temp_bbk'); // Temizle kanka
+          localStorage.removeItem('temp_bbk'); 
+
+          if (pendingPkgName && user) {
+            const matchedPkg = response.data.availablePackages?.find(p => p.packageName === pendingPkgName);
+            if (matchedPkg) {
+              localStorage.removeItem('pending_pkg_name');
+              autoSubmitOrder(savedBbk, matchedPkg);
+            }
+          }
         })
-        .catch(err => console.error("Hafızadaki BBK sorgulanamadı:", err))
+        .catch(err => console.error("Hafızadaki akış kurtarılamadı:", err))
         .finally(() => setLoading(false));
     }
-  }, []);
+  }, [user]);
+
+  // 🎯 GEÇMİŞ BAŞVURULARI BACKEND'DEN ÇEKME (KVKK UYUMLU)
+  useEffect(() => {
+    if (user) {
+      OrderService.getMyOrders()
+        .then(res => {
+          setMyOrders(res.data || []);
+        })
+        .catch(err => console.error("Kullanıcı sipariş geçmişi çekilemedi:", err));
+    } else {
+      setMyOrders([]);
+    }
+  }, [user]);
 
   useEffect(() => {
     AddressService.getDistricts()
@@ -112,21 +138,35 @@ export default function Inquiry() {
     }
   };
 
-  // 🎯 SİPARİŞİ TETİKLEME / GÜVENLİK DUVARI KONTROLÜ
+  const autoSubmitOrder = async (bbkId, pkg) => {
+    try {
+      setIsSubmitting(true);
+      const orderRequestDTO = {
+        bbk: bbkId,
+        packageName: pkg.packageName,
+        speedMbps: pkg.speedMbps,
+        price: pkg.price
+      };
+      const response = await OrderService.createOrder(orderRequestDTO);
+      const newOrderId = response.data.id || response.data.orderId || 'TR-000';
+      navigate(`/track/${newOrderId}`);
+    } catch (error) {
+      console.error("Otomatik sipariş basılamadı:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleOrderInitiate = async (pkg) => {
-    // GİZLİLİK VE GÜVENLİK KURALI: Eğer kullanıcı giriş yapmadıysa sipariş verdirtmiyoruz
     if (!user) {
-      // 1. Seçtiği binayı ve konumu unutmuyoruz, tarayıcıya yazıyoruz kanka
       localStorage.setItem('temp_bbk', feasibility.bbk);
+      localStorage.setItem('pending_pkg_name', pkg.packageName);
       if (feasibility.buildingLat) {
         localStorage.setItem('selected_lat', feasibility.buildingLat);
         localStorage.setItem('selected_lng', feasibility.buildingLng);
       }
       
-      // 2. AuthContext'e "giriş yaptıktan sonra buraya geri dönmek istiyor" notunu bırakıyoruz
       setRedirectTo('/');
-      
-      // 3. Kullanıcıyı incitmeden giriş sayfasına şutluyoruz
       navigate('/auth');
       return;
     }
@@ -165,91 +205,46 @@ export default function Inquiry() {
       
       {/* RESPONSIVE CSS INJECTION */}
       <style>{`
-        .responsive-header {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-        }
-        .main-layout {
-          display: grid;
-          grid-template-columns: repeat(12, minmax(0, 1fr));
-          width: 100%;
-          flex: 1;
-        }
-        .left-panel {
-          grid-column: span 3 / span 3;
-          border-right: 2px solid #041632;
-        }
-        .right-panel {
-          grid-column: span 9 / span 9;
-        }
-        .map-container {
-          height: 450px;
-        }
-        @media (max-width: 1024px) {
-          .left-panel { grid-column: span 4 / span 4; }
-          .right-panel { grid-column: span 8 / span 8; }
-        }
-        @media (max-width: 768px) {
-          .responsive-header { flex-direction: column; align-items: flex-start; }
-          .search-bar-container { width: 100%; display: flex; }
-          .search-bar-container input { flex: 1; }
-          .main-layout { display: flex; flex-direction: column; }
-          .left-panel { border-right: none; border-bottom: 2px solid #041632; }
-          .map-container { height: 300px; }
-        }
+        .responsive-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+        .main-layout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); width: 100%; flex: 1; }
+        .left-panel { grid-column: span 3 / span 3; border-right: 2px solid #041632; }
+        .right-panel { grid-column: span 9 / span 9; }
+        .map-container { height: 450px; }
+        .my-orders-list { overflow-y: auto; max-height: 200px; display: flex; flexDirection: column; gap: 8px; margin-top: 12px; }
+        .order-history-item { border: 2px solid #041632; padding: 10px; display: flex; justify-content: space-between; align-items: center; background-color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; }
+        .order-history-item:hover { transform: translate(-2px, -2px); box-shadow: 2px 2px 0px 0px #041632; }
+        @media (max-width: 1024px) { .left-panel { grid-column: span 4 / span 4; } .right-panel { grid-column: span 8 / span 8; } }
+        @media (max-width: 768px) { .responsive-header { flex-direction: column; align-items: flex-start; } .search-bar-container { width: 100%; display: flex; } .search-bar-container input { flex: 1; } .main-layout { display: flex; flex-direction: column; } .left-panel { border-right: none; border-bottom: 2px solid #041632; } .map-container { height: 300px; } }
       `}</style>
 
-      {/* HEADER: Senin o orijinal tasarımın, milimetrik korundu kanka */}
+      {/* HEADER */}
       <header className="responsive-header" style={{ borderBottom: '2px solid #041632', padding: '16px 24px', backgroundColor: '#ffffff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
           <span style={{ cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: '800', letterSpacing: '-0.05em' }} onClick={() => navigate('/')}>tel-co</span>
           <nav style={{ display: 'flex', gap: '20px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>
             <Link to="/" style={{ textDecoration: 'underline', textUnderlineOffset: '6px', textDecorationThickness: '2px', color: '#041632' }}>INVENTORY</Link>
-            
-            {/* Sadece Admin Giriş Yaptıysa Panel Linkini Çıkarıyoruz kanka */}
-            {user?.role === 'ADMIN' ? (
+            {user?.role === 'ADMIN' && (
               <Link to="/admin" style={{ textDecoration: 'none', color: '#041632', fontWeight: '900' }}>ADMIN PANEL 🔧</Link>
-            ) : (
-              <Link to="/admin" style={{ textDecoration: 'none', color: '#666' }}>ADMIN PANEL</Link>
             )}
           </nav>
         </div>
         
-        {/* SAĞ TARAF: Arama çubuğu ve senin özgün tasarımına yedirilmiş dinamik giriş/çıkış alanı */}
+        {/* SAĞ TARAF */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          
-          {/* 👥 DİNAMİK OTURUM DURUM ALANI */}
           <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700' }}>
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#041632', borderBottom: '1px dashed #041632' }}>👤 {user.fullName.toUpperCase()}</span>
                 <span style={{ color: '#ccc' }}>|</span>
-                <button 
-                  onClick={() => { logout(); navigate('/'); }} 
-                  style={{ border: 'none', backgroundColor: 'transparent', color: '#ff3333', cursor: 'pointer', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', padding: 0 }}
-                >
-                  ÇIKIŞ YAP
-                </button>
+                <button onClick={() => { logout(); navigate('/'); }} style={{ border: 'none', backgroundColor: 'transparent', color: '#ff3333', cursor: 'pointer', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', padding: 0 }}>ÇIKIŞ YAP</button>
               </div>
             ) : (
-              <Link to="/auth" style={{ color: '#041632', textDecoration: 'none', borderBottom: '2px solid #041632', paddingBottom: '2px' }}>
-                GİRİŞ YAP / KAYIT OL
-              </Link>
+              <Link to="/auth" style={{ color: '#041632', textDecoration: 'none', borderBottom: '2px solid #041632', paddingBottom: '2px' }}>GİRİŞ YAP / KAYIT OL</Link>
             )}
           </div>
 
           <div className="search-bar-container" style={{ border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
-            <input 
-              type="text" 
-              placeholder="SİPARİŞ ID SORGULA..." 
-              value={searchSerial}
-              onChange={(e) => setSearchSerial(e.target.value)}
-              onKeyDown={handleSerialSearch}
-              style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }}
-            />
+            <input type="text" placeholder="SİPARİŞ ID SORGULA..." value={searchSerial} onChange={(e) => setSearchSerial(e.target.value)} onKeyDown={handleSerialSearch} style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }} />
             <Search style={{ width: '16px', height: '16px', cursor: 'pointer' }} onClick={handleSerialSearch} />
           </div>
         </div>
@@ -258,9 +253,8 @@ export default function Inquiry() {
       {/* MAIN LAYOUT */}
       <main className="main-layout">
         
-        {/* SOL PANEL (SORGULAMA) */}
+        {/* SOL PANEL */}
         <section className="left-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#ffffff', position: 'relative' }}>
-          
           {loading && (
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(251, 249, 248, 0.85)', zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>
               <Loader2 className="animate-spin mb-2" style={{ color: '#041632', width: '32px', height: '32px' }} />
@@ -282,80 +276,66 @@ export default function Inquiry() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', marginBottom: '4px' }}>İLÇE</label>
-                <select 
-                  value={selected.district}
-                  onChange={(e) => setSelected({...selected, district: e.target.value})}
-                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
-                >
-                  <option value="">Seçiniz...</option>
-                  {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
+                <select value={selected.district} onChange={(e) => setSelected({...selected, district: e.target.value})} style={{ width: '100%', border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}><option value="">Seçiniz...</option>{districts.map(d => <option key={d} value={d}>{d}</option>)}</select>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', marginBottom: '4px' }}>MAHALLE</label>
-                <select 
-                  value={selected.neighborhood}
-                  onChange={(e) => setSelected({...selected, neighborhood: e.target.value})}
-                  disabled={!selected.district}
-                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.district ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
-                >
-                  <option value="">Seçiniz...</option>
-                  {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <select value={selected.neighborhood} onChange={(e) => setSelected({...selected, neighborhood: e.target.value})} disabled={!selected.district} style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.district ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}><option value="">Seçiniz...</option>{neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}</select>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', marginBottom: '4px' }}>SOKAK / CADDE</label>
-                <select 
-                  value={selected.street}
-                  onChange={(e) => setSelected({...selected, street: e.target.value})}
-                  disabled={!selected.neighborhood}
-                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.neighborhood ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
-                >
-                  <option value="">Seçiniz...</option>
-                  {streets.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <select value={selected.street} onChange={(e) => setSelected({...selected, street: e.target.value})} disabled={!selected.neighborhood} style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.neighborhood ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}><option value="">Seçiniz...</option>{streets.map(s => <option key={s} value={s}>{s}</option>)}</select>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', marginBottom: '4px' }}>BİNA (BBK)</label>
-                <select 
-                  value={selected.bbk}
-                  onChange={(e) => setSelected({...selected, bbk: e.target.value})}
-                  disabled={!selected.street || buildings.length === 0}
-                  style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.street ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}
-                >
-                  <option value="">Bina Seçiniz...</option>
-                  {buildings.map(b => (
-                    <option key={b.bbk} value={b.bbk}>No: {b.buildingNumber} (BBK: {b.bbk})</option>
-                  ))}
-                </select>
+                <select value={selected.bbk} onChange={(e) => setSelected({...selected, bbk: e.target.value})} disabled={!selected.street || buildings.length === 0} style={{ width: '100%', border: '2px solid #041632', backgroundColor: selected.street ? '#fbf9f8' : '#e0e0e0', padding: '10px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}><option value="">Bina Seçiniz...</option>{buildings.map(b => <option key={b.bbk} value={b.bbk}>No: {b.buildingNumber} (BBK: {b.bbk})</option>)}</select>
               </div>
             </div>
 
-            <button onClick={handleInquiry} disabled={!selected.bbk} style={{ width: '100%', backgroundColor: selected.bbk ? '#041632' : '#888', color: '#ffffff', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', padding: '14px', marginTop: '20px', border: '2px solid #041632', cursor: selected.bbk ? 'pointer' : 'not-allowed', boxShadow: '3px 3px 0px 0px #041632' }}>
-              SİNYALİ KONTROL ET
-            </button>
+            <button onClick={handleInquiry} disabled={!selected.bbk} style={{ width: '100%', backgroundColor: selected.bbk ? '#041632' : '#888', color: '#ffffff', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', padding: '14px', marginTop: '20px', border: '2px solid #041632', cursor: selected.bbk ? 'pointer' : 'not-allowed', boxShadow: '3px 3px 0px 0px #041632' }}>SİNYALİ KONTROL ET</button>
           </div>
 
+          {/* 🎯 ADIM 1.5: SADECE GİRİŞ YAPMIŞ KULLANICIYA ÖZEL SİPARİŞ GEÇMİŞİ LİSTESİ */}
+          {user && myOrders.length > 0 && (
+            <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '2px solid #041632' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                <ListOrdered style={{ width: '14px', height: '14px' }} />
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '900' }}>BAŞVURULARIM ({myOrders.length})</span>
+              </div>
+              <div className="my-orders-list">
+                {myOrders.map(order => (
+                  <div key={order.id} onClick={() => navigate(`/track/${order.id}`)} className="order-history-item">
+                    <div>
+                      <span style={{ fontWeight: '800' }}>#{order.id}</span>
+                      <span style={{ color: '#666', marginLeft: '6px' }}>{order.packageName}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', color: order.status === 'ONAYLANDI' ? 'green' : '#ff8c00', fontWeight: 'bold' }}>
+                        {order.status}
+                      </span>
+                      <ChevronRight style={{ width: '12px', height: '12px' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* GAUGE METRİKLER */}
           <div style={{ borderTop: '2px solid #041632', paddingTop: '20px', marginTop: '24px', display: 'flex', justifyContent: 'space-between', gap: '8px', opacity: feasibility ? 1 : 0.3 }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '13px' }}>
-                {feasibility ? feasibility.lineQualityPercent : '--'}%
-              </div>
+              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '13px' }}>{feasibility ? feasibility.lineQualityPercent : '--'}%</div>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', fontWeight: '700', display: 'block' }}>LINE QUALITY</span>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '12px' }}>
-                {feasibility ? feasibility.snrMarginDb : '--'}dB
-              </div>
+              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '12px' }}>{feasibility ? feasibility.snrMarginDb : '--'}dB</div>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', fontWeight: '700', display: 'block' }}>SNR MARGIN</span>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '12px' }}>
-                {feasibility ? feasibility.attenuationDb : '--'}dB
-              </div>
+              <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '12px' }}>{feasibility ? feasibility.attenuationDb : '--'}dB</div>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', fontWeight: '700', display: 'block' }}>ATTENUAT.</span>
             </div>
           </div>
@@ -363,15 +343,9 @@ export default function Inquiry() {
 
         {/* SAĞ PANEL (HARİTA VE PAKETLER) */}
         <section className="right-panel" style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff' }}>
-          
           <div className="map-container" style={{ position: 'relative', borderBottom: '2px solid #041632' }}>
             {isLoaded ? (
-              <GoogleMap
-                mapContainerStyle={containerStyle}
-                center={feasibility ? { lat: feasibility.buildingLat, lng: feasibility.buildingLng } : { lat: 39.7685, lng: 30.5095 }}
-                zoom={feasibility ? 16 : 12}
-                options={{ disableDefaultUI: false }}
-              >
+              <GoogleMap mapContainerStyle={containerStyle} center={feasibility ? { lat: feasibility.buildingLat, lng: feasibility.buildingLng } : { lat: 39.7685, lng: 30.5095 }} zoom={feasibility ? 16 : 12} options={{ disableDefaultUI: false }}>
                 {feasibility && (
                   <>
                     <MarkerF position={{ lat: feasibility.buildingLat, lng: feasibility.buildingLng }} label="EV" />
@@ -383,60 +357,50 @@ export default function Inquiry() {
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace' }}>HARİTA YÜKLENİYOR...</div>
             )}
 
+            {/* ROL BAZLI HARİTA BİLGİ KUTUSU FİLTRELEME */}
             {feasibility && (
               <div style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: '#ffffff', border: '2px solid #041632', padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', boxShadow: '3px 3px 0px 0px #041632', zIndex: 5, minWidth: '220px', maxWidth: 'calc(100% - 32px)' }}>
-                <div style={{ fontWeight: '800', marginBottom: '2px', display: 'flex', justifyWith: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span>💾 NODE: {feasibility.closestNodeName}</span>
-                  <span style={{ color: '#006400', fontSize: '10px', padding: '2px 4px', border: '1px solid #006400', marginTop: '4px' }}>
-                    ADMIN ID: {feasibility.closestNodeName ? parseInt(feasibility.closestNodeName.split('-')[2]) - 1000 : '?'}
-                  </span>
-                </div>
-
-                <div style={{ fontSize: '11px', color: feasibility.hasEmptyPort ? '#006400' : '#8b0000', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: feasibility.hasEmptyPort ? '#006400' : '#8b0000', display: 'inline-block' }}></span>
-                  {feasibility.infrastructureType} {feasibility.hasEmptyPort ? 'PORT MÜSAİT' : 'PORT YOK'}
-                </div>
-                <div style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>Mesafe: {feasibility.distanceMeters}m | Max Hız: {feasibility.maxAvailableSpeedMbps} Mbps</div>
+                {user?.role === 'ADMIN' ? (
+                  <>
+                    <div style={{ fontWeight: '800', marginBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span>💾 NODE: {feasibility.closestNodeName}</span>
+                      <span style={{ color: '#006400', fontSize: '10px', padding: '2px 4px', border: '1px solid #006400', marginTop: '4px' }}>
+                        ADMIN ID: {feasibility.closestNodeName ? parseInt(feasibility.closestNodeName.split('-')[2]) - 1000 : '?'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: feasibility.hasEmptyPort ? '#006400' : '#8b0000', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: feasibility.hasEmptyPort ? '#006400' : '#8b0000', display: 'inline-block' }}></span>
+                      {feasibility.infrastructureType} {feasibility.hasEmptyPort ? 'PORT MÜSAİT' : 'PORT DOLU'}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontWeight: '800', marginBottom: '6px', fontSize: '13px', color: '#041632' }}>🌐 ALTYAPI DURUMU</div>
+                    <div style={{ fontSize: '11px', color: feasibility.hasEmptyPort ? '#006400' : '#8b0000', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: feasibility.hasEmptyPort ? '#006400' : '#8b0000', display: 'inline-block' }}></span>
+                      {feasibility.infrastructureType === 'FIBER' ? '💥 YÜKSEK HIZLI FİBER' : '📶 HIZLI VDSL'} - {feasibility.hasEmptyPort ? 'BAŞVURUYA UYGUN' : 'PORT BEKLEME LİSTESİ'}
+                    </div>
+                  </>
+                )}
+                <div style={{ fontSize: '10px', marginTop: '4px', color: '#666', borderTop: '1px dashed #eae8e7', paddingTop: '4px' }}>Mesafe: {feasibility.distanceMeters}m | Max Hız: {feasibility.maxAvailableSpeedMbps} Mbps</div>
               </div>
             )}
           </div>
 
+          {/* PAKETLER */}
           <div style={{ padding: '32px', backgroundColor: '#fbf9f8', flex: 1 }}>
-            <h2 style={{ fontSize: '22px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '20px' }}>
-              {feasibility ? 'BİNANIZA ÖZEL ALTYAPI PAKETLERİ' : 'LÜTFEN ADRES SORGULAYINIZ'}
-            </h2>
-
+            <h2 style={{ fontSize: '22px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '20px' }}>{feasibility ? 'BİNANIZA ÖZEL ALTYAPI PAKETLERİ' : 'LÜTFEN ADRES SORGULAYINIZ'}</h2>
             {feasibility && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
                 {feasibility.availablePackages.map((pkg) => (
                   <div key={pkg.id} style={{ border: '2px solid #041632', backgroundColor: '#ffffff', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div>
                       <h3 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '15px', fontWeight: '800', marginBottom: '12px' }}>{pkg.packageName}</h3>
-                      <div style={{ fontSize: '28px', fontWeight: '900', marginBottom: '16px' }}>
-                        {pkg.speedMbps} <span style={{ fontSize: '13px', fontWeight: '500', fontFamily: 'JetBrains Mono, monospace' }}>Mbps</span>
-                      </div>
+                      <div style={{ fontSize: '28px', fontWeight: '900', marginBottom: '16px' }}>{pkg.speedMbps} <span style={{ fontSize: '13px', fontWeight: '500', fontFamily: 'JetBrains Mono, monospace' }}>Mbps</span></div>
                     </div>
-                    <div style={{ borderTop: '1px solid #041632', paddingTop: '12px', display: 'flex', justifyWith: 'space-between', alignItems: 'center' }}>
+                    <div style={{ borderTop: '1px solid #041632', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>{pkg.price}₺/ay</span>
-                      
-                      <button 
-                        onClick={() => handleOrderInitiate(pkg)}
-                        disabled={isSubmitting}
-                        style={{ 
-                          border: '2px solid #041632', 
-                          backgroundColor: '#041632', 
-                          color: '#ffffff', 
-                          fontFamily: 'JetBrains Mono, monospace', 
-                          fontSize: '11px', 
-                          fontWeight: '700', 
-                          padding: '8px 12px', 
-                          cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                          opacity: isSubmitting ? 0.7 : 1
-                        }}
-                      >
-                        {isSubmitting ? 'İŞLENİYOR...' : 'HEMEN BAŞLA'}
-                      </button>
-
+                      <button onClick={() => handleOrderInitiate(pkg)} disabled={isSubmitting} style={{ border: '2px solid #041632', backgroundColor: '#041632', color: '#ffffff', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', padding: '8px 12px', cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.7 : 1 }}>{isSubmitting ? 'İŞLENİYOR...' : 'HEMEN BAŞLA'}</button>
                     </div>
                   </div>
                 ))}
