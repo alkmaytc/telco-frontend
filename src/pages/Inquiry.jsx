@@ -37,7 +37,7 @@ export default function Inquiry() {
   
   const [myOrders, setMyOrders] = useState([]);
 
-  // 🎯 Akıllı Hafıza Kontrolü: Giriş/Kayıt sonrası yarım kalan siparişi tamamla
+  // 🎯 AKILLI HAFIZA KONTROLÜ: Giriş/Kayıt sonrası yarım kalan akışı kurtarır
   useEffect(() => {
     const savedBbk = localStorage.getItem('temp_bbk');
     const pendingPkgName = localStorage.getItem('pending_pkg_name');
@@ -46,12 +46,13 @@ export default function Inquiry() {
       setLoading(true);
       FeasibilityService.checkByBbk(savedBbk)
         .then(response => {
-          setFeasibility(response.data);
+          // 🎯 api.js'den veri doğrudan döküldüğü için response atandı ✅
+          setFeasibility(response);
           setSelected(prev => ({ ...prev, bbk: savedBbk }));
           localStorage.removeItem('temp_bbk'); 
 
           if (pendingPkgName && user) {
-            const matchedPkg = response.data.availablePackages?.find(p => p.packageName === pendingPkgName);
+            const matchedPkg = response.availablePackages?.find(p => p.packageName === pendingPkgName);
             if (matchedPkg) {
               localStorage.removeItem('pending_pkg_name');
               autoSubmitOrder(savedBbk, matchedPkg);
@@ -63,12 +64,12 @@ export default function Inquiry() {
     }
   }, [user]);
 
-  // 🎯 GEÇMİŞ BAŞVURULARI BACKEND'DEN ÇEKME (KVKK UYUMLU)
+  // 🎯 SİPARİŞ GEÇMİŞİNİ BACKEND'DEN ÇEKME (KVKK UYUMLU)
   useEffect(() => {
     if (user) {
       OrderService.getMyOrders()
         .then(res => {
-          setMyOrders(res.data || []);
+          setMyOrders(res || []);
         })
         .catch(err => console.error("Kullanıcı sipariş geçmişi çekilemedi:", err));
     } else {
@@ -76,11 +77,12 @@ export default function Inquiry() {
     }
   }, [user]);
 
+  // Adres Hiyerarşisi Adımları
   useEffect(() => {
     AddressService.getDistricts()
       .then(res => {
-        setDistricts(res.data);
-        if(res.data.length > 0) setSelected(prev => ({ ...prev, district: res.data[0] }));
+        setDistricts(res);
+        if(res.length > 0) setSelected(prev => ({ ...prev, district: res[0] }));
       })
       .catch(err => console.error("İlçeler çekilemedi:", err));
   }, []);
@@ -90,8 +92,8 @@ export default function Inquiry() {
       setNeighborhoods([]); setStreets([]); setBuildings([]);
       AddressService.getNeighborhoods(selected.district)
         .then(res => {
-          setNeighborhoods(res.data);
-          if(res.data.length > 0) setSelected(prev => ({ ...prev, neighborhood: res.data[0] }));
+          setNeighborhoods(res);
+          if(res.length > 0) setSelected(prev => ({ ...prev, neighborhood: res[0] }));
         });
     }
   }, [selected.district]);
@@ -101,8 +103,8 @@ export default function Inquiry() {
       setStreets([]); setBuildings([]);
       AddressService.getStreets(selected.district, selected.neighborhood)
         .then(res => {
-          setStreets(res.data);
-          if(res.data.length > 0) setSelected(prev => ({ ...prev, street: res.data[0] }));
+          setStreets(res);
+          if(res.length > 0) setSelected(prev => ({ ...prev, street: res[0] }));
         });
     }
   }, [selected.neighborhood]);
@@ -111,12 +113,16 @@ export default function Inquiry() {
     if (selected.district && selected.neighborhood && selected.street) {
       AddressService.getBuildings(selected.district, selected.neighborhood, selected.street)
         .then(res => {
-          setBuildings(res.data);
-          if(res.data.length > 0) setSelected(prev => ({ ...prev, bbk: res.data[0].bbk }));
+          setBuildings(res);
+          if(res.length > 0) setSelected(prev => ({ ...prev, bbk: res[0].bbk }));
         });
     }
   }, [selected.street]);
 
+  /**
+   * 🔍 FİZİBİLİTE SORGULAMA BUTONU MOTORU
+   * Arka plandaki PostGIS analizini ve Redis önbellek zırhını tetikler kanka! ✅
+   */
   const handleInquiry = async (e) => {
     e.preventDefault();
     if (!selected.bbk) {
@@ -128,10 +134,10 @@ export default function Inquiry() {
     setErrorMsg('');
     try {
       const response = await FeasibilityService.checkByBbk(selected.bbk);
-      setFeasibility(response.data); 
+      setFeasibility(response); // 🎯 Doğrudan filtrelenmiş veriyi basıyoruz kanka
     } catch (err) {
       console.error("Altyapı sorgu hatası:", err);
-      setErrorMsg("PostGIS altyapı servisine ulaşılamadı veya bina menzil dışında.");
+      setErrorMsg(err.message || "PostGIS altyapı servisine ulaşılamadı veya bina menzil dışında.");
     } finally {
       setLoading(false);
     }
@@ -147,7 +153,7 @@ export default function Inquiry() {
         price: pkg.price
       };
       const response = await OrderService.createOrder(orderRequestDTO);
-      const newOrderId = response.data.id || response.data.orderId || 'TR-000';
+      const newOrderId = response.id || 'TR-000';
       navigate(`/track/${newOrderId}`);
     } catch (error) {
       console.error("Otomatik sipariş basılamadı:", error);
@@ -156,6 +162,10 @@ export default function Inquiry() {
     }
   };
 
+  /**
+   * 🚀 MADDE 6: ASENKRON RABBİTMQ SİPARİŞ TETİKLEYİCİSİ
+   * Siparişi anında RECEIVED modunda açıp kuyruğa fırlatır kanka! ✅
+   */
   const handleOrderInitiate = async (pkg) => {
     if (!user) {
       localStorage.setItem('temp_bbk', feasibility.bbk);
@@ -180,14 +190,18 @@ export default function Inquiry() {
         price: pkg.price
       };
 
-      console.log("RabbitMQ'ya Sipariş Fırlatılıyor:", orderRequestDTO);
+      console.log("🚀 RabbitMQ Kuyruğuna Sipariş Gönderiliyor:", orderRequestDTO);
       const response = await OrderService.createOrder(orderRequestDTO);
-      const newOrderId = response.data.id || response.data.orderId || 'TR-000';
+      
+      // Backend DTO modelinden gelen şanlı id değerini yakalıyoruz kanka kanka ✅
+      const newOrderId = response.id || 'TR-000';
+      
+      // Kullanıcıyı bekletmeden anında asenkron takip zaman tüneline uçur kanka!
       navigate(`/track/${newOrderId}`);
 
     } catch (error) {
       console.error("Sipariş oluşturulamadı:", error);
-      alert("Sipariş işlemi sırasında hata oluştu. Lütfen tekrar deneyin.");
+      alert(error.message || "Sipariş işlemi sırasında hata oluştu.");
       setIsSubmitting(false); 
     }
   };
@@ -202,14 +216,13 @@ export default function Inquiry() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', flexDirection: 'column', fontFamily: 'Hanken Grotesk, sans-serif' }}>
       
-      {/* RESPONSIVE CSS INJECTION */}
       <style>{`
         .responsive-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
         .main-layout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); width: 100%; flex: 1; }
         .left-panel { grid-column: span 3 / span 3; border-right: 2px solid #041632; }
         .right-panel { grid-column: span 9 / span 9; }
         .map-container { height: 450px; }
-        .my-orders-list { overflow-y: auto; max-height: 200px; display: flex; flexDirection: column; gap: 8px; margin-top: 12px; }
+        .my-orders-list { overflow-y: auto; max-height: 200px; display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
         .order-history-item { border: 2px solid #041632; padding: 10px; display: flex; justify-content: space-between; align-items: center; background-color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; }
         .order-history-item:hover { transform: translate(-2px, -2px); box-shadow: 2px 2px 0px 0px #041632; }
         @media (max-width: 1024px) { .left-panel { grid-column: span 4 / span 4; } .right-panel { grid-column: span 8 / span 8; } }
@@ -228,7 +241,7 @@ export default function Inquiry() {
           </nav>
         </div>
         
-        {/* SAĞ TARAF */}
+        {/* KULLANICI ALANI */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700' }}>
             {user ? (
@@ -242,7 +255,7 @@ export default function Inquiry() {
             )}
           </div>
 
-          {/* 🎯 ADIM 6: SADECE GİRİŞ YAPMIŞ KULLANICILAR ARAMA ÇUBUĞUNU GÖREBİLSİN */}
+          {/* SİPARİŞ TAKİP SORGULAMA KUTUSU */}
           {user && (
             <div className="search-bar-container" style={{ border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
               <input type="text" placeholder="SİPARİŞ ID SORGULA..." value={searchSerial} onChange={(e) => setSearchSerial(e.target.value)} onKeyDown={handleSerialSearch} style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }} />
@@ -252,10 +265,10 @@ export default function Inquiry() {
         </div>
       </header>
 
-      {/* MAIN LAYOUT */}
+      {/* MAIN CONTENT */}
       <main className="main-layout">
         
-        {/* SOL PANEL */}
+        {/* SOL ADRES PANELİ */}
         <section className="left-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#ffffff', position: 'relative' }}>
           {loading && (
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(251, 249, 248, 0.85)', zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>
@@ -300,7 +313,7 @@ export default function Inquiry() {
             <button onClick={handleInquiry} disabled={!selected.bbk} style={{ width: '100%', backgroundColor: selected.bbk ? '#041632' : '#888', color: '#ffffff', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', padding: '14px', marginTop: '20px', border: '2px solid #041632', cursor: selected.bbk ? 'pointer' : 'not-allowed', boxShadow: '3px 3px 0px 0px #041632' }}>SİNYALİ KONTROL ET</button>
           </div>
 
-          {/* SİPARİŞ GEÇMİŞİ LİSTESİ */}
+          {/* KULLANICININ KENDİ BAŞVURULARI */}
           {user && myOrders.length > 0 && (
             <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '2px solid #041632' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
@@ -326,7 +339,7 @@ export default function Inquiry() {
             </div>
           )}
 
-          {/* GAUGE METRİKLER */}
+          {/* GAUGES */}
           <div style={{ borderTop: '2px solid #041632', paddingTop: '20px', marginTop: '24px', display: 'flex', justifyContent: 'space-between', gap: '8px', opacity: feasibility ? 1 : 0.3 }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px auto', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', backgroundColor: '#fbf9f8', fontSize: '13px' }}>{feasibility ? feasibility.lineQualityPercent : '--'}%</div>
@@ -343,7 +356,7 @@ export default function Inquiry() {
           </div>
         </section>
 
-        {/* SAĞ PANEL (HARİTA VE PAKETLER) */}
+        {/* SAĞ PANEL (HARİTA & PAKETLER) */}
         <section className="right-panel" style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff' }}>
           <div className="map-container" style={{ position: 'relative', borderBottom: '2px solid #041632' }}>
             {isLoaded ? (
@@ -359,7 +372,7 @@ export default function Inquiry() {
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace' }}>HARİTA YÜKLENİYOR...</div>
             )}
 
-            {/* ROL BAZLI HARİTA BİLGİ KUTUSU FİLTRELEME */}
+            {/* HARİTA ÜSTÜ ALTYAPI BİLGİ KUTUSU */}
             {feasibility && (
               <div style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: '#ffffff', border: '2px solid #041632', padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', boxShadow: '3px 3px 0px 0px #041632', zIndex: 5, minWidth: '220px', maxWidth: 'calc(100% - 32px)' }}>
                 {user?.role === 'ADMIN' ? (
@@ -389,13 +402,13 @@ export default function Inquiry() {
             )}
           </div>
 
-          {/* PAKETLER */}
+          {/* DİNAMİK PAKET LİSTELEME ALANI */}
           <div style={{ padding: '32px', backgroundColor: '#fbf9f8', flex: 1 }}>
             <h2 style={{ fontSize: '22px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '20px' }}>{feasibility ? 'BİNANIZA ÖZEL ALTYAPI PAKETLERİ' : 'LÜTFEN ADRES SORGULAYINIZ'}</h2>
             {feasibility && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
-                {feasibility.availablePackages.map((pkg) => (
-                  <div key={pkg.id} style={{ border: '2px solid #041632', backgroundColor: '#ffffff', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                {feasibility.availablePackages?.map((pkg) => (
+                  <div key={pkg.id || pkg.packageName} style={{ border: '2px solid #041632', backgroundColor: '#ffffff', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div>
                       <h3 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '15px', fontWeight: '800', marginBottom: '12px' }}>{pkg.packageName}</h3>
                       <div style={{ fontSize: '28px', fontWeight: '900', marginBottom: '16px' }}>{pkg.speedMbps} <span style={{ fontSize: '13px', fontWeight: '500', fontFamily: 'JetBrains Mono, monospace' }}>Mbps</span></div>

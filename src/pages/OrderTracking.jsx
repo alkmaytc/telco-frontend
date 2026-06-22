@@ -1,66 +1,61 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Clock, Terminal, RefreshCw, AlertTriangle, Lock, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, Terminal, RefreshCw, Lock, ShieldAlert } from 'lucide-react';
 import { OrderService } from '../services/api';
-import { AuthContext } from '../context/AuthContext'; // 🎯 Oturum havuzunu içeri aldık kanka
+import { AuthContext } from '../context/AuthContext'; 
 
 export default function OrderTracking() {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const { user, setRedirectTo } = useContext(AuthContext); // 🎯 Kullanıcı oturum state'leri
+  const { user, setRedirectTo } = useContext(AuthContext); 
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [history, setHistory] = useState([]);
 
-  // Manuel tetiklenen, loading ikonunu döndüren ana fonksiyon
+  // 🎯 ANA VERİ ÇEKME MOTORU
   const fetchOrderHistory = async () => {
-    // GİZLİLİK KURALI: Eğer kullanıcı oturum açmadıysa istek atmıyoruz kanka
     if (!user) return;
 
     setLoading(true);
     setError(false);
     try {
       const res = await OrderService.getOrderHistory(orderId);
-      setHistory(res.data || []);
+      // 🎯 api.js doğrudan response.data döndüğü için 'res' objesini dizinin kendisi olarak alıyoruz kanka!
+      setHistory(res || []);
     } catch (err) {
       console.error("Loglar çekilemedi veya yetkisiz erişim (IDOR Tetiklendi):", err);
-      // 🎯 SİBER GÜVENLİK ADIMI: Yetkisiz erişim durumunda hatayı true çekip ekranı kilitliyoruz
       setError(true);
     } finally {
       setLoading(false);
     }
   };
 
-  // Sayfa ilk açıldığında çalışır
   useEffect(() => {
     if (orderId && user) {
       fetchOrderHistory();
     }
   }, [orderId, user]);
 
-  // 🚀 OTOMATİK DİNLEME (AUTO-POLLING) SİSTEMİ
+  // 🚀 MADDE 6 & 7: ASENKRON RABBITMQ KUYRUK DİNLEYİCİSİ (AUTO-POLLING)
   useEffect(() => {
-    // Eğer kullanıcı giriş yapmadıysa veya IDOR hatası varsa polling çalışmasın
-    if (!user || error) return;
+    if (!user || error || history.length === 0) return;
 
-    // En son düşen logu al
     const sonLog = history[history.length - 1];
     
-    // Eğer log "PORT_BEKLENIYOR" ise kuyruk dinleniyor demektir
-    const beklemedeMi = sonLog && sonLog.status === 'PORT_BEKLENIYOR';
+    // Sipariş RabbitMQ'da beklemedeyse veya asenkron işlemdeyse tetiklenir kanka
+    const beklemedeMi = sonLog && (sonLog.status === 'PORT_BEKLENIYOR' || sonLog.status === 'RECEIVED');
 
     let intervalId;
     if (beklemedeMi && orderId) {
-      // Her 2.5 saniyede bir arka planda sessizce backend'e sor
       intervalId = setInterval(() => {
         OrderService.getOrderHistory(orderId)
-          .then(res => setHistory(res.data || []))
+          .then(res => setHistory(res || [])) // 🎯 Düzeltilmiş güvenli atama
           .catch(err => {
             console.error("Oto-Tazeleme hatası veya anlık yetki kaybı:", err);
             setError(true);
           });
-      }, 2500);
+      }, 2500); // Jüriye canlı göstermek için her 2.5 saniyede bir kuyruğu dinler
     }
 
     return () => {
@@ -71,39 +66,13 @@ export default function OrderTracking() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', flexDirection: 'column', fontFamily: 'Hanken Grotesk, sans-serif' }}>
       
-      {/* RESPONSIVE CSS INJECTION */}
       <style>{`
-        .responsive-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-        .tracking-main-grid {
-          display: grid;
-          grid-template-columns: repeat(12, minmax(0, 1fr));
-          width: 100%;
-          flex: 1;
-        }
-        .tracking-panel-left {
-          grid-column: span 7 / span 7;
-          border-right: 2px solid #041632;
-        }
-        .tracking-panel-right {
-          grid-column: span 5 / span 5;
-        }
-
-        @media (max-width: 1024px) {
-          .tracking-main-grid { display: flex; flex-direction: column; }
-          .tracking-panel-left { border-right: none; border-bottom: 2px solid #041632; }
-          .tracking-panel-right { min-height: 400px; }
-        }
-
-        @media (max-width: 768px) {
-          .responsive-header { flex-direction: column; align-items: flex-start; }
-          .refresh-btn { width: 100%; justify-content: center; }
-        }
+        .responsive-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+        .tracking-main-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); width: 100%; flex: 1; }
+        .tracking-panel-left { grid-column: span 7 / span 7; border-right: 2px solid #041632; }
+        .tracking-panel-right { grid-column: span 5 / span 5; }
+        @media (max-width: 1024px) { .tracking-main-grid { display: flex; flex-direction: column; } .tracking-panel-left { border-right: none; border-bottom: 2px solid #041632; } .tracking-panel-right { min-height: 400px; } }
+        @media (max-width: 768px) { .responsive-header { flex-direction: column; align-items: flex-start; } .refresh-btn { width: 100%; justify-content: center; } }
       `}</style>
 
       {/* HEADER */}
@@ -137,7 +106,7 @@ export default function OrderTracking() {
               </div>
             </div>
 
-            {/* 🛑 GİZLİLİK KORUMASI 1: Giriş yapmamış adama kilit ekranı gösteriyoruz kanka */}
+            {/* 🛑 GİZLİLİK KORUMASI 1: Oturum Yok */}
             {!user ? (
               <div style={{ border: '2px dashed #041632', backgroundColor: '#fbf9f8', padding: '40px 24px', textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', marginTop: '20px', boxShadow: '4px 4px 0px 0px #041632' }}>
                 <Lock style={{ width: '40px', height: '40px', margin: '0 auto 16px auto', color: '#041632' }} />
@@ -156,12 +125,12 @@ export default function OrderTracking() {
                 </button>
               </div>
             ) : error ? (
-              /* 🚨 GİZLİLİK KORUMASI 2 (IDOR): Başkasının Siparişine Sızmaya Çalışırsa Çakılacak Koruma Kutusu */
+              /* 🚨 GİZLİLİK KORUMASI 2 (IDOR): Yetkisiz Erişim */
               <div style={{ border: '2px solid red', backgroundColor: '#fff5f5', padding: '40px 24px', textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', marginTop: '20px', boxShadow: '4px 4px 0px 0px red' }}>
                 <ShieldAlert style={{ width: '40px', height: '40px', margin: '0 auto 16px auto', color: 'red' }} />
                 <h2 style={{ fontSize: '14px', fontWeight: '800', marginBottom: '8px', color: 'red' }}>YETKİSİZ ERİŞİM ENGELLENDİ</h2>
                 <p style={{ fontSize: '11px', color: '#444', marginBottom: '12px', lineHeight: '1.5' }}>
-                  Ağ Güvenlik Protokolü: Görüntülemek istediğiniz sipariş geçmişi sizin hesabınıza ait değildir.
+                  Ağ Güvenlik Protokolü: Görüntülemek istediğiniz sipariş geçmişi hesabınızla eşleşmiyor.
                 </p>
                 <span style={{ fontSize: '10px', color: 'red', fontWeight: 'bold', display: 'block', marginBottom: '20px' }}>[ KVKK VERİ KORUMA İHLALİ TETİKLENDİ ]</span>
                 <button
@@ -172,12 +141,12 @@ export default function OrderTracking() {
                 </button>
               </div>
             ) : (
-              /* ✅ SİPARİŞ SAHİBİ İSE ASIL ZAMAN TÜNELİ AKIŞI GÖRÜNÜR */
+              /* ✅ ZAMAN TÜNELİ AKIŞI */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', paddingLeft: '8px', position: 'relative', marginBottom: '32px' }}>
                 {history.length > 0 && <div style={{ position: 'absolute', top: '12px', bottom: '12px', left: '19px', width: '2px', backgroundColor: '#041632', borderStyle: 'dashed' }}></div>}
 
                 {history.length === 0 && !loading && (
-                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: '#666' }}>Henüz log kaydı oluşmadı...</div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: '#666' }}>Sipariş RabbitMQ kuyruğuna iletiliyor...</div>
                 )}
 
                 {history.map((logItem, index) => {
@@ -201,8 +170,9 @@ export default function OrderTracking() {
                             {logItem.changedAt ? new Date(logItem.changedAt).toLocaleTimeString() : '--:--'}
                           </span>
                         </div>
+                        {/* 🎯 BACKEND NOTUNU GÜVENLİ BASTIĞIMIZ YER */}
                         <p style={{ fontSize: '12px', color: '#444', margin: '4px 0 0 0', lineHeight: '1.4' }}>
-                          {logItem.description || 'Sipariş statüsü güncellendi.'}
+                          {logItem.note || logItem.description || 'Sipariş statüsü güncellendi.'}
                         </p>
                       </div>
                     </div>
@@ -230,7 +200,7 @@ export default function OrderTracking() {
                 <>
                   {history.map((logItem, index) => (
                     <div key={index} style={{ color: logItem.status === 'ONAYLANDI' ? '#4ade80' : (logItem.status?.includes('ERROR') ? 'red' : '#b7c7eb'), wordBreak: 'break-word' }}>
-                      [{logItem.changedAt ? new Date(logItem.changedAt).toLocaleTimeString() : 'TIME'}] [DB] STATUS: {logItem.status} - {logItem.description}
+                      [{logItem.changedAt ? new Date(logItem.changedAt).toLocaleTimeString() : 'TIME'}] [DB] STATUS: {logItem.status} - {logItem.note || logItem.description}
                     </div>
                   ))}
                   

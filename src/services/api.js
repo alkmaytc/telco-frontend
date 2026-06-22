@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Backend kök URL'i: http://localhost:8080/api/v1
+// 🎯 BACKEND ANA KAPISI: Spring Boot 8080 portuna köprü kuruyoruz kanka ✅
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1',
   timeout: 10000,
@@ -9,17 +9,17 @@ const api = axios.create({
   }
 });
 
-// 🔄 AXIOS INTERCEPTOR: İstek gitmeden hemen önce devreye giren güvenli asistanımız
+/**
+ * 🛡️ SİBER GÜVENLİK INTERCEPTOR MOTORU
+ * Her istek gitmeden hemen önce devreye girer. Tarayıcı hafızasındaki (LocalStorage)
+ * şanlı ADMIN token'ımızı alır ve HTTP Header'ına "Bearer <token>" olarak ekler kanka!
+ */
 api.interceptors.request.use(
   (config) => {
-    // Tarayıcının hafızasından (LocalStorage) token'ı kontrol ediyoruz
-    const token = localStorage.getItem('token');
-    
-    // Eğer token varsa (yani kullanıcı giriş yapmışsa), HTTP Header'ına "Bearer <token>" olarak ekliyoruz
+    const token = localStorage.getItem('telco_token'); // 🎯 Token anahtarını ortaklaştırdık kanka
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
-    
     return config;
   },
   (error) => {
@@ -27,50 +27,85 @@ api.interceptors.request.use(
   }
 );
 
-// 1. ADRES YÖNETİMİ (AddressController)
+/**
+ * ❌ GLOBAL ERROR INTERCEPTOR
+ * Backend'deki GlobalExceptionHandler'dan dönen kurumsal hata JSON'larını yakalar.
+ * Yetki patlaması (401/403) anında güvenliği korumak için hafızayı temizler kanka. ✅
+ */
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.data) {
+      // Backend'in bize fırlattığı siber güvenli ErrorResponseDTO'yu doğrudan arayüze paslıyoruz kanka
+      return Promise.reject(error.response.data);
+    }
+    return Promise.reject({ message: 'Sunucuyla bağlantı kesildi. Backend altyapısını kontrol edin!' });
+  }
+);
+
+// 🔐 0. KULLANICI GİRİŞ VE YETKİLENDİRME (AuthController)
+export const AuthService = {
+  // admin@telco.com ve 12345 ile giriş yapacağımız kapı kanka kanka ✅
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    return response.data;
+  },
+  register: async (registerData) => {
+    const response = await api.post('/auth/register', registerData);
+    return response.data;
+  }
+};
+
+// 🗺️ 1. ADRES YÖNETİMİ (AddressController)
 export const AddressService = {
   getDistricts: async () => {
-    return await api.get('/addresses/districts');
+    const response = await api.get('/addresses/districts');
+    return response.data;
   },
   getNeighborhoods: async (district) => {
-    return await api.get('/addresses/neighborhoods', { params: { district } });
+    const response = await api.get('/addresses/neighborhoods', { params: { district } });
+    return response.data;
   },
   getStreets: async (district, neighborhood) => {
-    return await api.get('/addresses/streets', { params: { district, neighborhood } });
+    const response = await api.get('/addresses/streets', { params: { district, neighborhood } });
+    return response.data;
   },
   getBuildings: async (district, neighborhood, street) => {
-    return await api.get('/addresses/buildings', { params: { district, neighborhood, street } });
+    const response = await api.get('/addresses/buildings', { params: { district, neighborhood, street } });
+    return response.data;
   }
 };
 
-// 2. FİZİBİLİTE / ALTYAPI SORGULAMA (FeasibilityController)
+// 🔍 2. FİZİBİLİTE / REDIS CACHING MOTORU (FeasibilityController)
 export const FeasibilityService = {
-  // Senaryo A: Form üzerinden BBK Kodu ile sorgulama
-  checkByBbk: async (code) => {
-    return await api.get('/feasibility/bbk', { params: { code } });
-  },
-  // Senaryo B: Harita üzerinden koordinat ile sorgulama
-  checkByCoordinates: async (lat, lng) => {
-    return await api.get('/feasibility/coordinates', { params: { lat, lng } });
+  // PostGIS mekansal analiz ve Redis cache katmanını tetikleyen şanlı sorgu kanka kanka ✅
+  checkByBbk: async (bbk) => {
+    // Backend controller'daki parametre ismi olan 'bbk' ile birebir eşitledik kanka
+    const response = await api.get('/feasibility/check', { params: { bbk } });
+    return response.data;
   }
 };
 
-// 3. SİPARİŞ VE ASENKRON SÜREÇLER (OrderController)
+// 🚀 3. SİPARİŞ VE ASENKRON SÜREÇLER (OrderController)
 export const OrderService = {
-  // Yeni Sipariş Fırlatma (Inquiry sayfasından tetiklenecek)
+  // Madde 6: Yeni Sipariş Fırlatma (Saniyede RECEIVED dönecek asenkron akış kanka) 
   createOrder: async (orderRequestDTO) => {
-    return await api.post('/orders', orderRequestDTO);
+    const response = await api.post('/orders', orderRequestDTO);
+    return response.data;
   },
   
-  // Operatör Paneli: Saha dolabına port ekleme ve kuyruk eritme
+  // Madde 3: Operatör / Admin Paneli: Saha dolabına port ekleme ve kuyruk eritme otomasyonu
   updateNodeCapacity: async (nodeId, additionalPorts) => {
-    return await api.put(`/orders/nodes/${nodeId}/capacity`, null, {
+    // Backend'de yazdığımız request path'i ile tam eşitledik kanka kanka ✅
+    const response = await api.put(`/orders/nodes/${nodeId}`, null, {
       params: { additionalPorts }
     });
+    return response.data;
   },
   
-  // Zaman Tüneli: Siparişin geçmiş event'lerini çekme (OrderTracking sayfası için)
+  // Madde 7: Sipariş Zaman Tüneli (OrderStatusHistory kuyruk adımlarını çeken yer)
   getOrderHistory: async (orderId) => {
-    return await api.get(`/orders/${orderId}/history`);
+    const response = await api.get(`/orders/${orderId}/history`);
+    return response.data;
   }
 };

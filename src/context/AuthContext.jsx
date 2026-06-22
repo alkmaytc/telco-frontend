@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 
-// Diğer sayfaların bu havuza erişmesi için Context'i dışarı açıyoruz
+// Diğer bileşenlerin (pages/components) bu havuza erişmesi için Context'i dışarı açıyoruz kanka
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -8,27 +8,31 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     
     // Kullanıcının gitmek istediği korumalı sayfayı (Örn: Sipariş Takip) 
-    // aklında tutacak olan akıllı state kanka
+    // aklında tutacak olan akıllı state kanka kanka
     const [redirectTo, setRedirectTo] = useState(null); 
 
     useEffect(() => {
-        // Sayfa her yenilendiğinde tarayıcının hafızasına bakıyoruz kanka
-        const token = localStorage.getItem('token');
-        const role = localStorage.getItem('role');
-        const fullName = localStorage.getItem('fullName');
+        // 🎯 Sayfa her yenilendiğinde ortak anahtarlarla hafızaya bakıyoruz kanka ✅
+        const token = localStorage.getItem('telco_token');
+        const role = localStorage.getItem('telco_role');
+        const fullName = localStorage.getItem('telco_fullName');
 
         if (token && role) {
-            // Eğer kartlar geçerliyse kullanıcıyı oturumu açık kabul ediyoruz
+            // Eğer kartlar geçerliyse kullanıcı oturumunu aktif kabul ediyoruz
             setUser({ token, role, fullName });
         }
         setLoading(false);
     }, []);
 
-    // Giriş Başarılı Olduğunda Tetiklenecek Fonksiyon
+    /**
+     * 🎯 GİRİŞ BAŞARILI MOTORU
+     * admin@telco.com ile giriş yaptığında dönen verileri ortak anahtarlarla hafızaya mühürler!
+     */
     const login = (authData) => {
-        localStorage.setItem('token', authData.token);
-        localStorage.setItem('role', authData.role);
-        localStorage.setItem('fullName', authData.fullName);
+        localStorage.setItem('telco_token', authData.token);
+        localStorage.setItem('telco_role', authData.role);
+        localStorage.setItem('telco_fullName', authData.fullName);
+        
         setUser({
             token: authData.token,
             role: authData.role,
@@ -36,12 +40,14 @@ export const AuthProvider = ({ children }) => {
         });
     };
 
-    // Güvenli Çıkış Yapıldığında Tetiklenecek Fonksiyon
+    /**
+     * 🚪 GÜVENLİ ÇIKIŞ MOTORU
+     * Oturumu kapatırken tarayıcı hafızasını tamamen sıfırlar kanka. ✅
+     */
     const logout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('role');
-        localStorage.removeItem('fullName');
-        // Geçici BBK verileri varsa temizlemek istersen buraya ekleyebiliriz kanka
+        localStorage.removeItem('telco_token');
+        localStorage.removeItem('telco_role');
+        localStorage.removeItem('telco_fullName');
         setUser(null);
     };
 
