@@ -35,7 +35,6 @@ export default function Inquiry() {
   const [feasibility, setFeasibility] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // 🎯 KİŞİSEL VERİ: Kullanıcının geçmiş başvurularını tutacak state
   const [myOrders, setMyOrders] = useState([]);
 
   // 🎯 Akıllı Hafıza Kontrolü: Giriş/Kayıt sonrası yarım kalan siparişi tamamla
@@ -243,10 +242,13 @@ export default function Inquiry() {
             )}
           </div>
 
-          <div className="search-bar-container" style={{ border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
-            <input type="text" placeholder="SİPARİŞ ID SORGULA..." value={searchSerial} onChange={(e) => setSearchSerial(e.target.value)} onKeyDown={handleSerialSearch} style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }} />
-            <Search style={{ width: '16px', height: '16px', cursor: 'pointer' }} onClick={handleSerialSearch} />
-          </div>
+          {/* 🎯 ADIM 6: SADECE GİRİŞ YAPMIŞ KULLANICILAR ARAMA ÇUBUĞUNU GÖREBİLSİN */}
+          {user && (
+            <div className="search-bar-container" style={{ border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
+              <input type="text" placeholder="SİPARİŞ ID SORGULA..." value={searchSerial} onChange={(e) => setSearchSerial(e.target.value)} onKeyDown={handleSerialSearch} style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }} />
+              <Search style={{ width: '16px', height: '16px', cursor: 'pointer' }} onClick={handleSerialSearch} />
+            </div>
+          )}
         </div>
       </header>
 
@@ -298,7 +300,7 @@ export default function Inquiry() {
             <button onClick={handleInquiry} disabled={!selected.bbk} style={{ width: '100%', backgroundColor: selected.bbk ? '#041632' : '#888', color: '#ffffff', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700', padding: '14px', marginTop: '20px', border: '2px solid #041632', cursor: selected.bbk ? 'pointer' : 'not-allowed', boxShadow: '3px 3px 0px 0px #041632' }}>SİNYALİ KONTROL ET</button>
           </div>
 
-          {/* 🎯 ADIM 1.5: SADECE GİRİŞ YAPMIŞ KULLANICIYA ÖZEL SİPARİŞ GEÇMİŞİ LİSTESİ */}
+          {/* SİPARİŞ GEÇMİŞİ LİSTESİ */}
           {user && myOrders.length > 0 && (
             <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '2px solid #041632' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
