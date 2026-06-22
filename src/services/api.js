@@ -9,6 +9,24 @@ const api = axios.create({
   }
 });
 
+// 🔄 AXIOS INTERCEPTOR: İstek gitmeden hemen önce devreye giren güvenli asistanımız
+api.interceptors.request.use(
+  (config) => {
+    // Tarayıcının hafızasından (LocalStorage) token'ı kontrol ediyoruz
+    const token = localStorage.getItem('token');
+    
+    // Eğer token varsa (yani kullanıcı giriş yapmışsa), HTTP Header'ına "Bearer <token>" olarak ekliyoruz
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // 1. ADRES YÖNETİMİ (AddressController)
 export const AddressService = {
   getDistricts: async () => {
@@ -35,8 +53,6 @@ export const FeasibilityService = {
   checkByCoordinates: async (lat, lng) => {
     return await api.get('/feasibility/coordinates', { params: { lat, lng } });
   }
-
-  
 };
 
 // 3. SİPARİŞ VE ASENKRON SÜREÇLER (OrderController)
@@ -48,7 +64,6 @@ export const OrderService = {
   
   // Operatör Paneli: Saha dolabına port ekleme ve kuyruk eritme
   updateNodeCapacity: async (nodeId, additionalPorts) => {
-    // PUT isteklerinde Query Parametreleri params objesiyle gönderilir
     return await api.put(`/orders/nodes/${nodeId}/capacity`, null, {
       params: { additionalPorts }
     });

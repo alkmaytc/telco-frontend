@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
-import { Search, Bell, Settings, Loader2, AlertTriangle } from 'lucide-react';
+import { Search, Loader2, AlertTriangle } from 'lucide-react';
 import { AddressService, FeasibilityService, OrderService } from '../services/api';
+import { AuthContext } from '../context/AuthContext'; // 🎯 Oturum havuzunu çektik
 
 const containerStyle = { width: '100%', height: '100%' };
 
-const retroMapStyle = []; 
-
 export default function Inquiry() {
   const navigate = useNavigate();
+  const { user, logout, setRedirectTo } = useContext(AuthContext); // 🎯 Güvenlik state'leri
+  
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
@@ -33,6 +34,22 @@ export default function Inquiry() {
 
   const [feasibility, setFeasibility] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 🎯 Hafızada bekleyen bir BBK sorgusu var mı kontrolü (Giriş yaptıktan sonra otomatik getirmek için)
+  useEffect(() => {
+    const savedBbk = localStorage.getItem('temp_bbk');
+    if (savedBbk && !feasibility) {
+      setLoading(true);
+      FeasibilityService.checkByBbk(savedBbk)
+        .then(response => {
+          setFeasibility(response.data);
+          setSelected(prev => ({ ...prev, bbk: savedBbk }));
+          localStorage.removeItem('temp_bbk'); // Temizle kanka
+        })
+        .catch(err => console.error("Hafızadaki BBK sorgulanamadı:", err))
+        .finally(() => setLoading(false));
+    }
+  }, []);
 
   useEffect(() => {
     AddressService.getDistricts()
@@ -95,7 +112,25 @@ export default function Inquiry() {
     }
   };
 
+  // 🎯 SİPARİŞİ TETİKLEME / GÜVENLİK DUVARI KONTROLÜ
   const handleOrderInitiate = async (pkg) => {
+    // GİZLİLİK VE GÜVENLİK KURALI: Eğer kullanıcı giriş yapmadıysa sipariş verdirtmiyoruz
+    if (!user) {
+      // 1. Seçtiği binayı ve konumu unutmuyoruz, tarayıcıya yazıyoruz kanka
+      localStorage.setItem('temp_bbk', feasibility.bbk);
+      if (feasibility.buildingLat) {
+        localStorage.setItem('selected_lat', feasibility.buildingLat);
+        localStorage.setItem('selected_lng', feasibility.buildingLng);
+      }
+      
+      // 2. AuthContext'e "giriş yaptıktan sonra buraya geri dönmek istiyor" notunu bırakıyoruz
+      setRedirectTo('/');
+      
+      // 3. Kullanıcıyı incitmeden giriş sayfasına şutluyoruz
+      navigate('/auth');
+      return;
+    }
+
     try {
       setIsSubmitting(true); 
 
@@ -163,30 +198,60 @@ export default function Inquiry() {
           .search-bar-container input { flex: 1; }
           .main-layout { display: flex; flex-direction: column; }
           .left-panel { border-right: none; border-bottom: 2px solid #041632; }
-          .map-container { height: 300px; } /* Mobilde harita boyutu küçültüldü */
+          .map-container { height: 300px; }
         }
       `}</style>
 
-      {/* HEADER */}
+      {/* HEADER: Senin o orijinal tasarımın, milimetrik korundu kanka */}
       <header className="responsive-header" style={{ borderBottom: '2px solid #041632', padding: '16px 24px', backgroundColor: '#ffffff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: '800', letterSpacing: '-0.05em' }}>tel-co</span>
+          <span style={{ cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: '800', letterSpacing: '-0.05em' }} onClick={() => navigate('/')}>tel-co</span>
           <nav style={{ display: 'flex', gap: '20px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>
-            <a href="/" style={{ textDecoration: 'underline', textUnderlineOffset: '6px', textDecorationThickness: '2px', color: '#041632' }}>INVENTORY</a>
-            <a href="/admin" style={{ textDecoration: 'none', color: '#666' }}>ADMIN PANEL</a>
+            <Link to="/" style={{ textDecoration: 'underline', textUnderlineOffset: '6px', textDecorationThickness: '2px', color: '#041632' }}>INVENTORY</Link>
+            
+            {/* Sadece Admin Giriş Yaptıysa Panel Linkini Çıkarıyoruz kanka */}
+            {user?.role === 'ADMIN' ? (
+              <Link to="/admin" style={{ textDecoration: 'none', color: '#041632', fontWeight: '900' }}>ADMIN PANEL 🔧</Link>
+            ) : (
+              <Link to="/admin" style={{ textDecoration: 'none', color: '#666' }}>ADMIN PANEL</Link>
+            )}
           </nav>
         </div>
         
-        <div className="search-bar-container" style={{ border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
-          <input 
-            type="text" 
-            placeholder="SİPARİŞ ID SORGULA..." 
-            value={searchSerial}
-            onChange={(e) => setSearchSerial(e.target.value)}
-            onKeyDown={handleSerialSearch}
-            style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }}
-          />
-          <Search style={{ width: '16px', height: '16px', cursor: 'pointer' }} onClick={handleSerialSearch} />
+        {/* SAĞ TARAF: Arama çubuğu ve senin özgün tasarımına yedirilmiş dinamik giriş/çıkış alanı */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          
+          {/* 👥 DİNAMİK OTURUM DURUM ALANI */}
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700' }}>
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#041632', borderBottom: '1px dashed #041632' }}>👤 {user.fullName.toUpperCase()}</span>
+                <span style={{ color: '#ccc' }}>|</span>
+                <button 
+                  onClick={() => { logout(); navigate('/'); }} 
+                  style={{ border: 'none', backgroundColor: 'transparent', color: '#ff3333', cursor: 'pointer', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', padding: 0 }}
+                >
+                  ÇIKIŞ YAP
+                </button>
+              </div>
+            ) : (
+              <Link to="/auth" style={{ color: '#041632', textDecoration: 'none', borderBottom: '2px solid #041632', paddingBottom: '2px' }}>
+                GİRİŞ YAP / KAYIT OL
+              </Link>
+            )}
+          </div>
+
+          <div className="search-bar-container" style={{ border: '2px solid #041632', backgroundColor: '#fbf9f8', padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
+            <input 
+              type="text" 
+              placeholder="SİPARİŞ ID SORGULA..." 
+              value={searchSerial}
+              onChange={(e) => setSearchSerial(e.target.value)}
+              onKeyDown={handleSerialSearch}
+              style={{ border: 'none', outline: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', width: '180px', backgroundColor: 'transparent' }}
+            />
+            <Search style={{ width: '16px', height: '16px', cursor: 'pointer' }} onClick={handleSerialSearch} />
+          </div>
         </div>
       </header>
 
@@ -320,7 +385,7 @@ export default function Inquiry() {
 
             {feasibility && (
               <div style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: '#ffffff', border: '2px solid #041632', padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', boxShadow: '3px 3px 0px 0px #041632', zIndex: 5, minWidth: '220px', maxWidth: 'calc(100% - 32px)' }}>
-                <div style={{ fontWeight: '800', marginBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: '800', marginBottom: '2px', display: 'flex', justifyWith: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span>💾 NODE: {feasibility.closestNodeName}</span>
                   <span style={{ color: '#006400', fontSize: '10px', padding: '2px 4px', border: '1px solid #006400', marginTop: '4px' }}>
                     ADMIN ID: {feasibility.closestNodeName ? parseInt(feasibility.closestNodeName.split('-')[2]) - 1000 : '?'}
@@ -351,25 +416,25 @@ export default function Inquiry() {
                         {pkg.speedMbps} <span style={{ fontSize: '13px', fontWeight: '500', fontFamily: 'JetBrains Mono, monospace' }}>Mbps</span>
                       </div>
                     </div>
-                    <div style={{ borderTop: '1px solid #041632', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ borderTop: '1px solid #041632', paddingTop: '12px', display: 'flex', justifyWith: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700' }}>{pkg.price}₺/ay</span>
                       
                       <button 
                         onClick={() => handleOrderInitiate(pkg)}
-                        disabled={!feasibility.hasEmptyPort || isSubmitting}
+                        disabled={isSubmitting}
                         style={{ 
                           border: '2px solid #041632', 
-                          backgroundColor: feasibility.hasEmptyPort ? '#041632' : '#ccc', 
-                          color: feasibility.hasEmptyPort ? '#ffffff' : '#666', 
+                          backgroundColor: '#041632', 
+                          color: '#ffffff', 
                           fontFamily: 'JetBrains Mono, monospace', 
                           fontSize: '11px', 
                           fontWeight: '700', 
                           padding: '8px 12px', 
-                          cursor: (!feasibility.hasEmptyPort || isSubmitting) ? 'not-allowed' : 'pointer',
+                          cursor: isSubmitting ? 'not-allowed' : 'pointer',
                           opacity: isSubmitting ? 0.7 : 1
                         }}
                       >
-                        {isSubmitting ? 'İŞLENİYOR...' : (feasibility.hasEmptyPort ? 'HEMEN BAŞLA' : 'PORT DOLU')}
+                        {isSubmitting ? 'İŞLENİYOR...' : 'HEMEN BAŞLA'}
                       </button>
 
                     </div>
