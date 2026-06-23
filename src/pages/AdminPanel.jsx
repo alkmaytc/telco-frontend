@@ -201,7 +201,13 @@ export default function AdminPanel() {
                     const isFull = isNodeFull(n.capacity); // 🎯 MATEMATİKSEL KONTROL
                     return (
                       <div key={n.id} style={{ border: '2px solid #041632', padding: '14px', backgroundColor: isFull ? '#fed3c7' : '#ffffff', boxShadow: '2px 2px 0px 0px #041632' }}>
-                        <p style={{ fontWeight: '800', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', margin: 0 }}>ID [{n.id}] - {n.name}</p>
+                        {/* 🎯 MAKYAJ TAMAMLANDI: Başlık kısmına dinamik FIBER/VDSL etiketi mühürlendi kanka ✅ */}
+                        <p style={{ fontWeight: '800', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <span>ID [{n.id}] - {n.name}</span>
+                          <span style={{ fontSize: '9px', backgroundColor: n.nodeType === 'FIBER' ? '#041632' : '#666', color: '#fff', padding: '2px 6px', fontWeight: '900', letterSpacing: '0.05em' }}>
+                            {n.nodeType || 'VDSL'}
+                          </span>
+                        </p>
                         <p style={{ fontSize: '12px', marginTop: '6px', marginBottom: 0, fontFamily: 'JetBrains Mono, monospace', color: isFull ? '#d10000' : '#041632' }}>
                           Kapasite: <strong>{n.capacity} PORT</strong> <br/>
                           Statü: <span style={{ textDecoration: 'underline', fontWeight: isFull ? 'bold' : 'normal' }}>{isFull ? 'KAPASİTE TAMAMEN DOLU' : 'AKTİF HİZMET VERİYOR'}</span>
