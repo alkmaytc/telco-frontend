@@ -37,7 +37,11 @@ export default function Inquiry() {
   
   const [myOrders, setMyOrders] = useState([]);
 
-  // 🎯 AKILLI HAFIZA KONTROLÜ: Giriş/Kayıt sonrası yarım kalan akışı kurtarır
+  // 🎯 POP-UP KONTROL STATE'LERİ
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingPackage, setPendingPackage] = useState(null);
+
+  // 🎯 AKILLI HAFIZA KONTROLÜ
   useEffect(() => {
     const savedBbk = localStorage.getItem('temp_bbk');
     const pendingPkgName = localStorage.getItem('pending_pkg_name');
@@ -46,7 +50,6 @@ export default function Inquiry() {
       setLoading(true);
       FeasibilityService.checkByBbk(savedBbk)
         .then(response => {
-          // 🎯 api.js'den veri doğrudan döküldüğü için response atandı ✅
           setFeasibility(response);
           setSelected(prev => ({ ...prev, bbk: savedBbk }));
           localStorage.removeItem('temp_bbk'); 
@@ -64,7 +67,7 @@ export default function Inquiry() {
     }
   }, [user]);
 
-  // 🎯 SİPARİŞ GEÇMİŞİNİ BACKEND'DEN ÇEKME (KVKK UYUMLU)
+  // 🎯 SİPARİŞ GEÇMİŞİNİ BACKEND'DEN ÇEKME
   useEffect(() => {
     if (user) {
       OrderService.getMyOrders()
@@ -119,10 +122,6 @@ export default function Inquiry() {
     }
   }, [selected.street]);
 
-  /**
-   * 🔍 FİZİBİLİTE SORGULAMA BUTONU MOTORU
-   * Arka plandaki PostGIS analizini ve Redis önbellek zırhını tetikler kanka! ✅
-   */
   const handleInquiry = async (e) => {
     e.preventDefault();
     if (!selected.bbk) {
@@ -134,7 +133,7 @@ export default function Inquiry() {
     setErrorMsg('');
     try {
       const response = await FeasibilityService.checkByBbk(selected.bbk);
-      setFeasibility(response); // 🎯 Doğrudan filtrelenmiş veriyi basıyoruz kanka
+      setFeasibility(response); 
     } catch (err) {
       console.error("Altyapı sorgu hatası:", err);
       setErrorMsg(err.message || "PostGIS altyapı servisine ulaşılamadı veya bina menzil dışında.");
@@ -162,21 +161,10 @@ export default function Inquiry() {
     }
   };
 
-  /**
-   * 🚀 MADDE 6: ASENKRON RABBİTMQ SİPARİŞ TETİKLEYİCİSİ
-   * Siparişi anında RECEIVED modunda açıp kuyruğa fırlatır kanka! ✅
-   */
   const handleOrderInitiate = async (pkg) => {
     if (!user) {
-      localStorage.setItem('temp_bbk', feasibility.bbk);
-      localStorage.setItem('pending_pkg_name', pkg.packageName);
-      if (feasibility.buildingLat) {
-        localStorage.setItem('selected_lat', feasibility.buildingLat);
-        localStorage.setItem('selected_lng', feasibility.buildingLng);
-      }
-      
-      setRedirectTo('/');
-      navigate('/auth');
+      setPendingPackage(pkg);
+      setShowAuthModal(true);
       return;
     }
 
@@ -190,13 +178,8 @@ export default function Inquiry() {
         price: pkg.price
       };
 
-      console.log("🚀 RabbitMQ Kuyruğuna Sipariş Gönderiliyor:", orderRequestDTO);
       const response = await OrderService.createOrder(orderRequestDTO);
-      
-      // Backend DTO modelinden gelen şanlı id değerini yakalıyoruz kanka kanka ✅
       const newOrderId = response.id || 'TR-000';
-      
-      // Kullanıcıyı bekletmeden anında asenkron takip zaman tüneline uçur kanka!
       navigate(`/track/${newOrderId}`);
 
     } catch (error) {
@@ -204,6 +187,19 @@ export default function Inquiry() {
       alert(error.message || "Sipariş işlemi sırasında hata oluştu.");
       setIsSubmitting(false); 
     }
+  };
+
+  const handleModalProceed = () => {
+    if (pendingPackage && feasibility) {
+      localStorage.setItem('temp_bbk', feasibility.bbk);
+      localStorage.setItem('pending_pkg_name', pendingPackage.packageName);
+      if (feasibility.buildingLat) {
+        localStorage.setItem('selected_lat', feasibility.buildingLat);
+        localStorage.setItem('selected_lng', feasibility.buildingLng);
+      }
+    }
+    setRedirectTo('/');
+    navigate('/auth');
   };
 
   const handleSerialSearch = (e) => {
@@ -424,6 +420,45 @@ export default function Inquiry() {
           </div>
         </section>
       </main>
+
+      {/* 🛡️ %100 SİMETRİK VE ORTALANMIŞ MÜHÜRLÜ GİRİŞ MODALI ✅ */}
+      {showAuthModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(4, 22, 50, 0.4)', backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: '#ffffff', border: '3px solid #041632', padding: '32px', maxWidth: '440px', width: '90%', boxShadow: '6px 6px 0px 0px #041632', position: 'relative', textAlign: 'center' }}>
+            
+            {/* Başlık ve İkon - Tamamen Ortalandı */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ backgroundColor: '#fff3cd', border: '2px solid #041632', padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AlertTriangle style={{ color: '#041632', width: '20px', height: '20px' }} />
+              </div>
+              <h3 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '18px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '-0.02em', margin: 0 }}>GİRİŞ YAPMANIZ GEREKLİ</h3>
+            </div>
+
+            {/* Sade ve Ortalanmış Metin */}
+            <p style={{ fontSize: '13px', color: '#444', lineHeight: '1.6', marginBottom: '24px', textAlign: 'center' }}>
+              Seçtiğiniz <strong>{pendingPackage?.packageName}</strong> paketine başvuru yapabilmek ve işlemlere devam edebilmek için lütfen önce giriş yapın.
+            </p>
+
+            {/* Butonlar - Tam Ortada ve Hizalı */}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', alignItems: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700' }}>
+              <button 
+                onClick={() => { setShowAuthModal(false); setPendingPackage(null); }}
+                style={{ border: '2px solid #041632', backgroundColor: '#ffffff', color: '#041632', padding: '10px 16px', cursor: 'pointer', fontWeight: '700', transition: 'transform 0.1s ease' }}
+              >
+                İPTAL
+              </button>
+              <button 
+                onClick={handleModalProceed}
+                style={{ border: '2px solid #041632', backgroundColor: '#041632', color: '#ffffff', padding: '10px 20px', cursor: 'pointer', fontWeight: '700', boxShadow: '3px 3px 0px 0px #041632' }}
+              >
+                GİRİŞ SAYFASINA GİT 
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -78,10 +78,10 @@ export const AddressService = {
 
 // 🔍 2. FİZİBİLİTE / REDIS CACHING MOTORU (FeasibilityController)
 export const FeasibilityService = {
-  // PostGIS mekansal analiz ve Redis cache katmanını tetikleyen şanlı sorgu kanka kanka ✅
-  checkByBbk: async (bbk) => {
-    // Backend controller'daki parametre ismi olan 'bbk' ile birebir eşitledik kanka
-    const response = await api.get('/feasibility/check', { params: { bbk } });
+  // 🎯 DEĞİŞEN YER BURASI: Backend FeasibilityController ile %100 senkronize edildi kanka! ✅
+  checkByBbk: async (bbkCode) => {
+    // Backend'deki /feasibility/bbk?code=... yapısına tam olarak uyum sağladık
+    const response = await api.get('/feasibility/bbk', { params: { code: bbkCode } });
     return response.data;
   }
 };
@@ -109,3 +109,4 @@ export const OrderService = {
     return response.data;
   }
 };
+export default api;
