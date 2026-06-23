@@ -1,19 +1,16 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Users, Terminal, DollarSign } from 'lucide-react';
+import { Activity, ArrowLeft, Users, DollarSign } from 'lucide-react';
 import api, { OrderService } from '../services/api'; 
-import { AuthContext } from '../context/AuthContext'; 
 
 export default function AdminPanel() {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext); 
   const [loading, setLoading] = useState(false);
-  const [isAuthorized, setIsAuthorized] = useState(false);
   const [targetNodeId, setTargetNodeId] = useState('');
   
-  // 🎯 BİLDİRİM STATE'LERİ KANKA
+  // 🎯 BİLDİRİM STATE'LERİ
   const [alertMsg, setAlertMsg] = useState('');
-  const [alertType, setAlertType] = useState(''); // 'success' veya 'error'
+  const [alertType, setAlertType] = useState(''); 
 
   const [data, setData] = useState({
     stats: { totalRevenue: 0, activeSubscribers: 0, pendingRabbitMq: 0 },
@@ -21,7 +18,6 @@ export default function AdminPanel() {
     nodes: []
   });
 
-  // Otomatik kapanan bildirim tetikleyicisi kanka
   const triggerAlert = (msg, type) => {
     setAlertMsg(msg);
     setAlertType(type);
@@ -31,20 +27,8 @@ export default function AdminPanel() {
     }, 4000);
   };
 
-  // 🛡️ SİBER GÜVENLİK VE ROL KONTROLÜ
-  useEffect(() => {
-    const currentRole = user?.role || localStorage.getItem('telco_role');
-    
-    if (currentRole !== 'ADMIN') {
-      console.warn("Yetersiz yetki! Giriş yapan rol:", currentRole);
-      navigate('/', { replace: true });
-    } else {
-      setIsAuthorized(true);
-    }
-  }, [navigate, user]);
-
+  // 🔄 BACKEND'DEN CANLI VERİ ÇEKME (Yetki kontrolü tamamen ProtectedRoute'a bırakıldı ✅)
   const fetchDashboard = async () => {
-    if (!isAuthorized) return;
     try {
       const response = await api.get('/admin/dashboard'); 
       if (response && response.data) {
@@ -56,14 +40,12 @@ export default function AdminPanel() {
   };
 
   useEffect(() => {
-    if (isAuthorized) {
-      fetchDashboard();
-      const intervalId = setInterval(fetchDashboard, 4000);
-      return () => clearInterval(intervalId);
-    }
-  }, [isAuthorized]);
+    fetchDashboard();
+    const intervalId = setInterval(fetchDashboard, 4000);
+    return () => clearInterval(intervalId);
+  }, []);
 
-  // ⚡ PORT ENJEKSİYONU VE KUYRUK ERİTME MOTORU (ALERTS CLEANED)
+  // ⚡ PORT ENJEKSİYONU VE KUYRUK ERİTME MOTORU
   const handleInjectCapacity = async () => {
     if (!targetNodeId) {
       triggerAlert("Lütfen port eklemek istediğiniz Saha Dolabı ID'sini girin!", "error");
@@ -83,8 +65,6 @@ export default function AdminPanel() {
       setLoading(false);
     }
   };
-
-  if (!isAuthorized) return <div style={{padding: '50px', textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', fontWeight: '700'}}>GÜVENLİK KONTROLÜ...</div>;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', flexDirection: 'column', fontFamily: 'Hanken Grotesk, sans-serif' }}>
@@ -118,14 +98,10 @@ export default function AdminPanel() {
         </section>
 
         <section className="dashboard-main-grid">
-          
-          {/* SOL PANEL */}
           <div className="panel-left">
-            {/* KAPASİTE ENJEKSİYONU ŞOVU */}
             <div style={{ border: '2px solid #041632', padding: '24px', backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '900', marginBottom: '16px' }}>DİNAMİK KAPASİTE ENJEKSİYONU</h2>
               
-              {/* 🎯 KUSURSUZ DİNAMİK UYARI PANELİ */}
               {alertMsg && (
                 <div style={{ 
                   border: '2px solid #041632', 
@@ -148,7 +124,6 @@ export default function AdminPanel() {
               </button>
             </div>
 
-            {/* RABBITMQ SİPARİŞLERİ */}
             <div style={{ border: '2px solid #041632', padding: '24px', flex: 1, backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632' }}>
               <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '12px' }}>RABBITMQ BEKLEYENLER</h2>
               <div style={{ overflowX: 'auto' }}>
@@ -168,7 +143,6 @@ export default function AdminPanel() {
             </div>
           </div>
 
-          {/* SAĞ PANEL */}
           <div className="panel-right" style={{ border: '2px solid #041632', padding: '24px', backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632' }}>
             <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '16px' }}>SAHA DOLAPLARI AKTİF PORT GRAFİĞİ</h2>
             <div className="nodes-grid">
