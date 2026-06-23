@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Users, DollarSign } from 'lucide-react';
+import { Activity, ArrowLeft, Users, DollarSign, Server, Terminal } from 'lucide-react';
 import api, { OrderService } from '../services/api'; 
 
 export default function AdminPanel() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [targetNodeId, setTargetNodeId] = useState('');
+  const [portAmount, setPortAmount] = useState(5); // 🎯 DİNAMİK PORT SEÇİCİ STATE'İ
   
-  // 🎯 BİLDİRİM STATE'LERİ
   const [alertMsg, setAlertMsg] = useState('');
   const [alertType, setAlertType] = useState(''); 
 
   const [data, setData] = useState({
-    stats: { totalRevenue: 0, activeSubscribers: 0, pendingRabbitMq: 0 },
+    stats: { totalRevenue: 0, activeSubscribers: 0, pendingRabbitMq: 0, totalNodes: 0 },
     pendingOrders: [],
-    nodes: []
+    nodes: [],
+    logs: [] // 🎯 BACKEND'DEN GELEN LOGLAR BURAYA DÜŞÜYOR
   });
 
   const triggerAlert = (msg, type) => {
@@ -27,7 +28,6 @@ export default function AdminPanel() {
     }, 4000);
   };
 
-  // 🔄 BACKEND'DEN CANLI VERİ ÇEKME (Yetki kontrolü tamamen ProtectedRoute'a bırakıldı ✅)
   const fetchDashboard = async () => {
     try {
       const response = await api.get('/admin/dashboard'); 
@@ -45,7 +45,6 @@ export default function AdminPanel() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // ⚡ PORT ENJEKSİYONU VE KUYRUK ERİTME MOTORU
   const handleInjectCapacity = async () => {
     if (!targetNodeId) {
       triggerAlert("Lütfen port eklemek istediğiniz Saha Dolabı ID'sini girin!", "error");
@@ -53,9 +52,9 @@ export default function AdminPanel() {
     }
     try {
       setLoading(true);
-      await OrderService.updateNodeCapacity(targetNodeId, 5); 
+      await OrderService.updateNodeCapacity(targetNodeId, portAmount); 
       
-      triggerAlert(`Saha dolabına 5 yeni port enjekte edildi. Bekleyen siparişler onaylanıyor!`, "success");
+      triggerAlert(`Saha dolabına ${portAmount} yeni port enjekte edildi. Bekleyen siparişler onaylanıyor!`, "success");
       setTargetNodeId(''); 
       fetchDashboard(); 
     } catch (err) {
@@ -66,6 +65,16 @@ export default function AdminPanel() {
     }
   };
 
+  // 🎯 KAPASİTE BUG'I ÇÖZÜCÜ: "5 / 10" string formatını matematiksel olarak analiz eden motor
+  const isNodeFull = (capacityStr) => {
+    if (!capacityStr) return false;
+    const parts = capacityStr.toString().split('/');
+    if (parts.length === 2) {
+      return parseInt(parts[0].trim()) >= parseInt(parts[1].trim());
+    }
+    return capacityStr === '0';
+  };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', flexDirection: 'column', fontFamily: 'Hanken Grotesk, sans-serif' }}>
       
@@ -73,8 +82,14 @@ export default function AdminPanel() {
         .responsive-header { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
         .dashboard-main-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
         .panel-left { grid-column: span 5 / span 5; display: flex; flex-direction: column; gap: 24px; }
-        .panel-right { grid-column: span 7 / span 7; }
+        .panel-right { grid-column: span 7 / span 7; display: flex; flex-direction: column; gap: 24px; }
         .nodes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        
+        /* 🎯 TERMİNAL SCROLL BAR STİLİ */
+        .terminal-scroll::-webkit-scrollbar { width: 6px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: #1e1e1e; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #4af626; }
+        
         @media (max-width: 1024px) { .dashboard-main-grid { display: flex; flex-direction: column; } .panel-left, .panel-right { width: 100%; } }
         @media (max-width: 768px) { .nodes-grid { grid-template-columns: 1fr; } .stat-card { padding: 16px !important; } .stat-card-title { font-size: 16px !important; } }
       `}</style>
@@ -91,10 +106,12 @@ export default function AdminPanel() {
 
       <main style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         
+        {/* 🎯 STAT KARTLARINA TOTAL NODES EKLENDİ */}
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
           <StatCard icon={<DollarSign/>} label="AYLIK BEKLENEN CİRO" value={`${data.stats?.totalRevenue || 0} ₺`} color="#e6ffe6" />
           <StatCard icon={<Users/>} label="AKTİF ABONELER" value={data.stats?.activeSubscribers || 0} color="#b7c7eb" />
           <StatCard icon={<Activity/>} label="KUYRUK (RABBITMQ)" value={`${data.stats?.pendingRabbitMq || 0} BEKLEYEN`} color="#fed3c7" />
+          <StatCard icon={<Server/>} label="TOPLAM SAHA DOLABI" value={data.stats?.totalNodes || 0} color="#fff3cd" />
         </section>
 
         <section className="dashboard-main-grid">
@@ -118,15 +135,25 @@ export default function AdminPanel() {
                 </div>
               )}
 
-              <input type="number" value={targetNodeId} onChange={(e) => setTargetNodeId(e.target.value)} placeholder="Saha Dolabı (Node) ID Giriniz" style={{ width: '100%', padding: '12px', border: '2px solid #041632', marginBottom: '12px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', boxSizing: 'border-box' }} />
+              {/* 🎯 DİNAMİK PORT SEÇİCİ EKLENDİ */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                <input type="number" value={targetNodeId} onChange={(e) => setTargetNodeId(e.target.value)} placeholder="Saha Dolabı ID" style={{ flex: 1, padding: '12px', border: '2px solid #041632', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', boxSizing: 'border-box' }} />
+                <select value={portAmount} onChange={(e) => setPortAmount(Number(e.target.value))} style={{ width: '100px', padding: '12px', border: '2px solid #041632', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 'bold' }}>
+                  <option value={5}>+5 PORT</option>
+                  <option value={10}>+10 PORT</option>
+                  <option value={20}>+20 PORT</option>
+                  <option value={50}>+50 PORT</option>
+                </select>
+              </div>
+              
               <button onClick={handleInjectCapacity} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#041632', color: '#fff', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', border: '2px solid #041632', cursor: 'pointer', boxShadow: '2px 2px 0px 0px #041632' }}>
-                {loading ? 'İŞLENİYOR...' : '+5 PORT ENJEKTE ET ⚡'}
+                {loading ? 'İŞLENİYOR...' : `SEÇİLİ PORTU ENJEKTE ET ⚡`}
               </button>
             </div>
 
             <div style={{ border: '2px solid #041632', padding: '24px', flex: 1, backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '12px' }}>RABBITMQ BEKLEYENLER</h2>
-              <div style={{ overflowX: 'auto' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '12px' }}>RABBITMQ BEKLEYEN SİPARİŞLER</h2>
+              <div style={{ overflowX: 'auto', maxHeight: '250px' }}>
                 {data.pendingOrders && data.pendingOrders.length > 0 ? (
                   data.pendingOrders.map(o => (
                     <div key={o.id} style={{ borderBottom: '1px solid #eae8e7', padding: '10px 0', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>
@@ -143,25 +170,53 @@ export default function AdminPanel() {
             </div>
           </div>
 
-          <div className="panel-right" style={{ border: '2px solid #041632', padding: '24px', backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '16px' }}>SAHA DOLAPLARI AKTİF PORT GRAFİĞİ</h2>
-            <div className="nodes-grid">
-              {data.nodes && data.nodes.length > 0 ? (
-                data.nodes.map(n => (
-                  <div key={n.id} style={{ border: '2px solid #041632', padding: '14px', backgroundColor: n.capacity === 0 ? '#fed3c7' : '#ffffff', boxShadow: '2px 2px 0px 0px #041632' }}>
-                    <p style={{ fontWeight: '800', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', margin: 0 }}>ID [{n.id}] - {n.name}</p>
-                    <p style={{ fontSize: '12px', marginTop: '6px', marginBottom: 0, fontFamily: 'JetBrains Mono, monospace', color: n.capacity === 0 ? 'red' : '#041632' }}>
-                      Kapasite: <strong>{n.capacity} PORT</strong> <br/>
-                      Statü: <span style={{ textDecoration: 'underline' }}>{n.capacity === 0 ? 'KAPASİTE DOLU' : 'AKTİF'}</span>
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <div style={{ fontSize: '11px', fontFamily: 'JetBrains Mono, monospace', color: '#666' }}>
-                  Node verileri çekilemedi veya veritabanı boş.
-                </div>
-              )}
+          <div className="panel-right">
+            
+            {/* 🎯 CANLI SİSTEM LOGLARI TERMİNALİ */}
+            <div style={{ border: '2px solid #041632', padding: '20px', backgroundColor: '#1e1e1e', color: '#4af626', boxShadow: '4px 4px 0px 0px #041632', fontFamily: 'JetBrains Mono, monospace' }}>
+              <h2 style={{ fontSize: '14px', fontWeight: '900', marginBottom: '12px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Terminal size={18} /> CANLI BSS & RABBITMQ LOGLARI
+              </h2>
+              <div className="terminal-scroll" style={{ height: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px' }}>
+                {data.logs && data.logs.length > 0 ? (
+                  data.logs.map((log, idx) => (
+                    <div key={idx} style={{ borderBottom: '1px dotted #333', paddingBottom: '4px' }}>
+                      <span style={{ color: '#888' }}>[{new Date(log.changedAt || Date.now()).toLocaleTimeString()}]</span>
+                      <span style={{ color: '#fff', marginLeft: '6px', fontWeight: 'bold' }}>[ID:#{log.orderId || '-'}]</span>
+                      <span style={{ marginLeft: '6px', color: log.status === 'ONAYLANDI' ? '#4af626' : log.status === 'IPTAL' ? '#ff4444' : '#f1fa8c' }}>{log.status}</span>
+                      <span style={{ marginLeft: '6px', color: '#ccc' }}>- {log.description}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ color: '#888' }}>Sistem dinleniyor... BSS motorundan log kaydı bekleniyor.</div>
+                )}
+              </div>
             </div>
+
+            <div style={{ border: '2px solid #041632', padding: '24px', backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632', flex: 1 }}>
+              <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '16px' }}>SAHA DOLAPLARI AKTİF PORT GRAFİĞİ</h2>
+              <div className="nodes-grid">
+                {data.nodes && data.nodes.length > 0 ? (
+                  data.nodes.map(n => {
+                    const isFull = isNodeFull(n.capacity); // 🎯 MATEMATİKSEL KONTROL
+                    return (
+                      <div key={n.id} style={{ border: '2px solid #041632', padding: '14px', backgroundColor: isFull ? '#fed3c7' : '#ffffff', boxShadow: '2px 2px 0px 0px #041632' }}>
+                        <p style={{ fontWeight: '800', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', margin: 0 }}>ID [{n.id}] - {n.name}</p>
+                        <p style={{ fontSize: '12px', marginTop: '6px', marginBottom: 0, fontFamily: 'JetBrains Mono, monospace', color: isFull ? '#d10000' : '#041632' }}>
+                          Kapasite: <strong>{n.capacity} PORT</strong> <br/>
+                          Statü: <span style={{ textDecoration: 'underline', fontWeight: isFull ? 'bold' : 'normal' }}>{isFull ? 'KAPASİTE TAMAMEN DOLU' : 'AKTİF HİZMET VERİYOR'}</span>
+                        </p>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ fontSize: '11px', fontFamily: 'JetBrains Mono, monospace', color: '#666' }}>
+                    Node verileri çekilemedi veya veritabanı boş.
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         </section>
       </main>
