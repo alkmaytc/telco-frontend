@@ -37,9 +37,10 @@ export default function Inquiry() {
   
   const [myOrders, setMyOrders] = useState([]);
 
-  // 🎯 POP-UP KONTROL STATE'LERİ
+  // 🎯 POP-UP KONTROL VE SİPARİŞ HATA STATE'LERİ
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingPackage, setPendingPackage] = useState(null);
+  const [orderError, setOrderError] = useState('');
 
   // 🎯 AKILLI HAFIZA KONTROLÜ
   useEffect(() => {
@@ -170,6 +171,7 @@ export default function Inquiry() {
 
     try {
       setIsSubmitting(true); 
+      setOrderError('');
 
       const orderRequestDTO = {
         bbk: feasibility.bbk,
@@ -184,7 +186,9 @@ export default function Inquiry() {
 
     } catch (error) {
       console.error("Sipariş oluşturulamadı:", error);
-      alert(error.message || "Sipariş işlemi sırasında hata oluştu.");
+      // 🎯 ALERT YERİNE TEMPORARY STATE YAZILDI KANKA
+      setOrderError(error.message || "Sipariş işlemi sırasında hata oluştu.");
+      setTimeout(() => setOrderError(''), 4000);
       setIsSubmitting(false); 
     }
   };
@@ -401,6 +405,15 @@ export default function Inquiry() {
           {/* DİNAMİK PAKET LİSTELEME ALANI */}
           <div style={{ padding: '32px', backgroundColor: '#fbf9f8', flex: 1 }}>
             <h2 style={{ fontSize: '22px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '20px' }}>{feasibility ? 'BİNANIZA ÖZEL ALTYAPI PAKETLERİ' : 'LÜTFEN ADRES SORGULAYINIZ'}</h2>
+            
+            {/* 🎯 SİPARİŞ HATA BİLDİRİM BANNERI */}
+            {orderError && (
+              <div style={{ border: '2px solid #041632', backgroundColor: '#fed3c7', padding: '12px', marginBottom: '20px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700', boxShadow: '3px 3px 0px 0px #041632', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle style={{ width: '14px', height: '14px', color: '#041632' }} />
+                <span>HATA: {orderError}</span>
+              </div>
+            )}
+
             {feasibility && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
                 {feasibility.availablePackages?.map((pkg) => (

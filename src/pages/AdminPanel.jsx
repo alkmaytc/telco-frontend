@@ -11,16 +11,29 @@ export default function AdminPanel() {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [targetNodeId, setTargetNodeId] = useState('');
   
-  // Arayüzü patlatmamak için varsayılan boş bir iskelet koyuyoruz kanka
+  // 🎯 BİLDİRİM STATE'LERİ KANKA
+  const [alertMsg, setAlertMsg] = useState('');
+  const [alertType, setAlertType] = useState(''); // 'success' veya 'error'
+
   const [data, setData] = useState({
     stats: { totalRevenue: 0, activeSubscribers: 0, pendingRabbitMq: 0 },
     pendingOrders: [],
     nodes: []
   });
 
+  // Otomatik kapanan bildirim tetikleyicisi kanka
+  const triggerAlert = (msg, type) => {
+    setAlertMsg(msg);
+    setAlertType(type);
+    setTimeout(() => {
+      setAlertMsg('');
+      setAlertType('');
+    }, 4000);
+  };
+
   // 🛡️ SİBER GÜVENLİK VE ROL KONTROLÜ
   useEffect(() => {
-    const currentRole = user?.role || localStorage.getItem('telco_role'); // 🎯 Ortak anahtara geçtik kanka
+    const currentRole = user?.role || localStorage.getItem('telco_role');
     
     if (currentRole !== 'ADMIN') {
       console.warn("Yetersiz yetki! Giriş yapan rol:", currentRole);
@@ -30,50 +43,42 @@ export default function AdminPanel() {
     }
   }, [navigate, user]);
 
-  // 🔄 BACKEND'DEN CANLI VERİ ÇEKME (API.JS INTERCEPTOR'I KULLANARAK)
   const fetchDashboard = async () => {
     if (!isAuthorized) return;
     try {
-      // 🎯 Token'ı axios ile manuel vermek yerine merkezi api motorumuzu kullandık kanka ✅
-      // Not: Backend'de bu endpoint henüz yazılmadıysa veya testteysen sahte (mock) veri dönebilirsin.
-      // Şimdilik jüriye çalışır göstermek için altyapıyı mühürledik.
       const response = await api.get('/admin/dashboard'); 
       if (response && response.data) {
         setData(response.data);
       }
     } catch (err) {
-      console.error("Dashboard verisi alınamadı (Backend tarafında admin/dashboard endpoint'i açık mı?):", err);
+      console.error("Dashboard verisi alınamadı:", err);
     }
   };
 
   useEffect(() => {
     if (isAuthorized) {
       fetchDashboard();
-      // RabbitMQ asenkron akışını izlemek için her 4 saniyede bir paneli sessizce tazele kanka kanka
       const intervalId = setInterval(fetchDashboard, 4000);
       return () => clearInterval(intervalId);
     }
   }, [isAuthorized]);
 
-  // ⚡ MADDE 3: PORT ENJEKSİYONU VE KUYRUK ERİTME MOTORU
+  // ⚡ PORT ENJEKSİYONU VE KUYRUK ERİTME MOTORU (ALERTS CLEANED)
   const handleInjectCapacity = async () => {
     if (!targetNodeId) {
-      alert("Lütfen port eklemek istediğiniz Saha Dolabı (Node) ID'sini girin!");
+      triggerAlert("Lütfen port eklemek istediğiniz Saha Dolabı ID'sini girin!", "error");
       return;
     }
     try {
       setLoading(true);
-      // Backend'deki updateNodeCapacityAndProcessQueue servisini tetikliyoruz kanka!
-      // Buraya 5 port gönderiyoruz, o da boşta olan RabbitMQ siparişlerini otomatik onaylıyor! ✅
       await OrderService.updateNodeCapacity(targetNodeId, 5); 
       
-      alert(`⚡ SİSTEM MESAJI: ${targetNodeId} ID'li saha dolabına 5 yeni port enjekte edildi. Bekleyen siparişler asenkron olarak onaylanıyor!`);
+      triggerAlert(`Saha dolabına 5 yeni port enjekte edildi. Bekleyen siparişler onaylanıyor!`, "success");
       setTargetNodeId(''); 
-      fetchDashboard(); // Port eklendiği an veriyi hemen tazele
+      fetchDashboard(); 
     } catch (err) {
       console.error("Kapasite artırım hatası:", err);
-      // Hata gelirse JSON içinden ErrorResponseDTO'yu güvenle oku kanka
-      alert(`HATA: ${err.message || 'Kapasite artırılamadı.'}`);
+      triggerAlert(err.message || 'Kapasite enjekte edilemedi.', "error");
     } finally {
       setLoading(false);
     }
@@ -84,7 +89,6 @@ export default function AdminPanel() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', flexDirection: 'column', fontFamily: 'Hanken Grotesk, sans-serif' }}>
       
-      {/* RESPONSIVE CSS INJECTION */}
       <style>{`
         .responsive-header { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
         .dashboard-main-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
@@ -99,7 +103,7 @@ export default function AdminPanel() {
         <button onClick={() => navigate('/')} style={{ border: '2px solid #041632', backgroundColor: 'transparent', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <ArrowLeft style={{ width: '16px', height: '16px' }} />
         </button>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: '800', letterSpacing: '-0.05em' }}>tel-co</span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: '800', letterSpacing: '-0.05em' }} onClick={() => navigate('/')}>tel-co</span>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', border: '2px solid #041632', padding: '4px 8px', backgroundColor: '#b7c7eb', fontWeight: '700' }}>
           KORUMALI ALTYAPI YÖNETİM MERKEZİ 🔧
         </span>
@@ -107,14 +111,12 @@ export default function AdminPanel() {
 
       <main style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         
-        {/* ROW 1: CANLI METRİKLER */}
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
           <StatCard icon={<DollarSign/>} label="AYLIK BEKLENEN CİRO" value={`${data.stats?.totalRevenue || 0} ₺`} color="#e6ffe6" />
           <StatCard icon={<Users/>} label="AKTİF ABONELER" value={data.stats?.activeSubscribers || 0} color="#b7c7eb" />
           <StatCard icon={<Activity/>} label="KUYRUK (RABBITMQ)" value={`${data.stats?.pendingRabbitMq || 0} BEKLEYEN`} color="#fed3c7" />
         </section>
 
-        {/* ROW 2: İŞLEM VE TABLOLAR */}
         <section className="dashboard-main-grid">
           
           {/* SOL PANEL */}
@@ -122,6 +124,24 @@ export default function AdminPanel() {
             {/* KAPASİTE ENJEKSİYONU ŞOVU */}
             <div style={{ border: '2px solid #041632', padding: '24px', backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '900', marginBottom: '16px' }}>DİNAMİK KAPASİTE ENJEKSİYONU</h2>
+              
+              {/* 🎯 KUSURSUZ DİNAMİK UYARI PANELİ */}
+              {alertMsg && (
+                <div style={{ 
+                  border: '2px solid #041632', 
+                  backgroundColor: alertType === 'success' ? '#e6ffe6' : '#fed3c7', 
+                  padding: '12px', 
+                  marginBottom: '12px', 
+                  fontFamily: 'JetBrains Mono, monospace', 
+                  fontSize: '11px', 
+                  fontWeight: '700',
+                  boxShadow: '2px 2px 0px 0px #041632',
+                  textAlign: 'center'
+                }}>
+                  {alertType === 'success' ? '✅ SUCCESS: ' : '❌ ERROR: '} {alertMsg}
+                </div>
+              )}
+
               <input type="number" value={targetNodeId} onChange={(e) => setTargetNodeId(e.target.value)} placeholder="Saha Dolabı (Node) ID Giriniz" style={{ width: '100%', padding: '12px', border: '2px solid #041632', marginBottom: '12px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', boxSizing: 'border-box' }} />
               <button onClick={handleInjectCapacity} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#041632', color: '#fff', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', border: '2px solid #041632', cursor: 'pointer', boxShadow: '2px 2px 0px 0px #041632' }}>
                 {loading ? 'İŞLENİYOR...' : '+5 PORT ENJEKTE ET ⚡'}
@@ -148,7 +168,7 @@ export default function AdminPanel() {
             </div>
           </div>
 
-          {/* SAĞ PANEL: SAHA DOLAPLARI LİSTESİ */}
+          {/* SAĞ PANEL */}
           <div className="panel-right" style={{ border: '2px solid #041632', padding: '24px', backgroundColor: '#fff', boxShadow: '4px 4px 0px 0px #041632' }}>
             <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '16px' }}>SAHA DOLAPLARI AKTİF PORT GRAFİĞİ</h2>
             <div className="nodes-grid">

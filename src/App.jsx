@@ -1,18 +1,56 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Inquiry from './pages/Inquiry';
 import OrderTracking from './pages/OrderTracking';
 import AdminPanel from './pages/AdminPanel';
-import Auth from './pages/Auth'; // 🎯 Yeni Auth sayfamızı içeri aldık
+import Auth from './pages/Auth'; 
+import { AuthContext } from './context/AuthContext'; // 🎯 Yetki zırhı için context'i bağladık
+
+// 🛡️ KORUYUCU WRAPPER COMPONENT (PROTECTED ROUTE)
+const ProtectedRoute = ({ children, requiredRole }) => {
+  const { user } = useContext(AuthContext);
+
+  // 1. Durum: Kullanıcı hiç giriş yapmadıysa direkt giriş sayfasına yönlendir
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // 2. Durum: Admin rolü gerekirken kullanıcının rolü ADMIN değilse anasayfaya şutla
+  if (requiredRole && user.role !== requiredRole) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Her şey yolundaysa gitmek istediği sayfayı aç kanka
+  return children;
+};
 
 function App() {
   return (
     <Router>
       <Routes>
+        {/* Herkese Açık Rota */}
         <Route path="/" element={<Inquiry />} />
-        <Route path="/track/:orderId" element={<OrderTracking />} />
-        <Route path="/admin" element={<AdminPanel />} />
-        <Route path="/auth" element={<Auth />} /> {/* 🎯 Yeni Rota Buraya Eklendi */}
+        <Route path="/auth" element={<Auth />} /> 
+
+        {/* 🔐 Giriş Zorunlu Rota (Sipariş Takip) */}
+        <Route 
+          path="/track/:orderId" 
+          element={
+            <ProtectedRoute>
+              <OrderTracking />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* 🔐 Sadece ADMIN'e Açık Korumalı Rota (Yönetim Paneli) */}
+        <Route 
+          path="/admin" 
+          element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminPanel />
+            </ProtectedRoute>
+          } 
+        />
       </Routes>
     </Router>
   );
