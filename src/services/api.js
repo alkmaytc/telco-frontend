@@ -90,7 +90,8 @@ export const OrderService = {
     return response.data;
   },
   updateNodeCapacity: async (nodeId, additionalPorts) => {
-    const response = await api.put(`/orders/nodes/${nodeId}`, null, {
+    // 🎯 ÇÖZÜM: Sonuna eksik olan /capacity rotası eklendi! Artık backend ile %100 uyumlu. ✅
+    const response = await api.put(`/orders/nodes/${nodeId}/capacity`, null, {
       params: { additionalPorts }
     });
     return response.data;
