@@ -99,14 +99,14 @@ export const OrderService = {
     const response = await api.get(`/orders/${orderId}/history`);
     return response.data;
   },
-  // 🎯 Inquiry.jsx sayfasının çökmesini engelleyen metot
+  // 🎯 DÜZELTİLEN METOT: Backend ile %100 uyumlu hale getirildi (my-orders) ✅
   getMyOrders: async () => {
-    const response = await api.get('/orders');
+    const response = await api.get('/orders/my-orders');
     return response.data;
   }
 };
 
-// 👤 4. MÜŞTERİ PROFİL İŞLEMLERİ (UserController) -> 🎯 ENJEKTE EDİLDİ ✅
+// 👤 4. MÜŞTERİ PROFİL İŞLEMLERİ (UserController)
 export const UserService = {
   // Giriş yapmış abonenin (Customer) Ad, Soyad, E-posta verilerini getirir
   getMyProfile: async () => {
