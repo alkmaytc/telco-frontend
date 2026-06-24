@@ -12,11 +12,11 @@ const api = axios.create({
 /**
  * 🛡️ SİBER GÜVENLİK INTERCEPTOR MOTORU
  * Her istek gitmeden hemen önce devreye girer. Tarayıcı hafızasındaki (LocalStorage)
- * şanlı ADMIN token'ımızı alır ve HTTP Header'ına "Bearer <token>" olarak ekler kanka!
+ * şanlı token'ımızı alır ve HTTP Header'ına "Bearer <token>" olarak ekler kanka!
  */
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('telco_token'); // 🎯 Token anahtarını ortaklaştırdık kanka
+    const token = localStorage.getItem('telco_token'); // Token anahtarını ortaklaştırdık kanka
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -45,7 +45,6 @@ api.interceptors.response.use(
 
 // 🔐 0. KULLANICI GİRİŞ VE YETKİLENDİRME (AuthController)
 export const AuthService = {
-  // admin@telco.com ve 12345 ile giriş yapacağımız kapı kanka kanka ✅
   login: async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
     return response.data;
@@ -78,9 +77,7 @@ export const AddressService = {
 
 // 🔍 2. FİZİBİLİTE / REDIS CACHING MOTORU (FeasibilityController)
 export const FeasibilityService = {
-  // 🎯 DEĞİŞEN YER BURASI: Backend FeasibilityController ile %100 senkronize edildi kanka! ✅
   checkByBbk: async (bbkCode) => {
-    // Backend'deki /feasibility/bbk?code=... yapısına tam olarak uyum sağladık
     const response = await api.get('/feasibility/bbk', { params: { code: bbkCode } });
     return response.data;
   }
@@ -88,25 +85,39 @@ export const FeasibilityService = {
 
 // 🚀 3. SİPARİŞ VE ASENKRON SÜREÇLER (OrderController)
 export const OrderService = {
-  // Madde 6: Yeni Sipariş Fırlatma (Saniyede RECEIVED dönecek asenkron akış kanka) 
   createOrder: async (orderRequestDTO) => {
     const response = await api.post('/orders', orderRequestDTO);
     return response.data;
   },
-  
-  // Madde 3: Operatör / Admin Paneli: Saha dolabına port ekleme ve kuyruk eritme otomasyonu
   updateNodeCapacity: async (nodeId, additionalPorts) => {
-    // Backend'de yazdığımız request path'i ile tam eşitledik kanka kanka ✅
     const response = await api.put(`/orders/nodes/${nodeId}`, null, {
       params: { additionalPorts }
     });
     return response.data;
   },
-  
-  // Madde 7: Sipariş Zaman Tüneli (OrderStatusHistory kuyruk adımlarını çeken yer)
   getOrderHistory: async (orderId) => {
     const response = await api.get(`/orders/${orderId}/history`);
     return response.data;
+  },
+  // 🎯 Inquiry.jsx sayfasının çökmesini engelleyen metot
+  getMyOrders: async () => {
+    const response = await api.get('/orders');
+    return response.data;
   }
 };
+
+// 👤 4. MÜŞTERİ PROFİL İŞLEMLERİ (UserController) -> 🎯 ENJEKTE EDİLDİ ✅
+export const UserService = {
+  // Giriş yapmış abonenin (Customer) Ad, Soyad, E-posta verilerini getirir
+  getMyProfile: async () => {
+    const response = await api.get('/users/me');
+    return response.data;
+  },
+  // Profil bilgilerini (Ad, Soyad, E-posta) günceller
+  updateMyProfile: async (profileDTO) => {
+    const response = await api.put('/users/me', profileDTO);
+    return response.data;
+  }
+};
+
 export default api;

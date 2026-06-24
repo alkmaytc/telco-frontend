@@ -4,7 +4,8 @@ import Inquiry from './pages/Inquiry';
 import OrderTracking from './pages/OrderTracking';
 import AdminPanel from './pages/AdminPanel';
 import Auth from './pages/Auth'; 
-import { AuthContext } from './context/AuthContext'; // 🎯 Yetki zırhı için context'i bağladık
+import UserProfile from './pages/UserProfile'; // 🎯 YENİ EKLENDİ: Profil sayfası dahil edildi
+import { AuthContext } from './context/AuthContext'; 
 
 // 🛡️ KORUYUCU WRAPPER COMPONENT (PROTECTED ROUTE)
 const ProtectedRoute = ({ children, requiredRole }) => {
@@ -38,6 +39,16 @@ function App() {
           element={
             <ProtectedRoute>
               <OrderTracking />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* 🔐 🎯 YENİ EKLENDİ: Giriş Zorunlu Rota (Müşteri Profil Ayarları) */}
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <UserProfile />
             </ProtectedRoute>
           } 
         />

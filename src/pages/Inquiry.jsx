@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
-import { Search, Loader2, AlertTriangle, ListOrdered, ChevronRight } from 'lucide-react';
-import { AddressService, FeasibilityService, OrderService } from '../services/api';
+import { Search, Loader2, AlertTriangle, ListOrdered, ChevronRight, User } from 'lucide-react';
+import { AddressService, FeasibilityService, OrderService, UserService } from '../services/api';
 import { AuthContext } from '../context/AuthContext'; 
 
 const containerStyle = { width: '100%', height: '100%' };
@@ -186,7 +186,6 @@ export default function Inquiry() {
 
     } catch (error) {
       console.error("Sipariş oluşturulamadı:", error);
-      // 🎯 ALERT YERİNE TEMPORARY STATE YAZILDI KANKA
       setOrderError(error.message || "Sipariş işlemi sırasında hata oluştu.");
       setTimeout(() => setOrderError(''), 4000);
       setIsSubmitting(false); 
@@ -241,12 +240,24 @@ export default function Inquiry() {
           </nav>
         </div>
         
-        {/* KULLANICI ALANI */}
+        {/* KULLANICI ALANI VE PROFİL BUTONU */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700' }}>
             {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#041632', borderBottom: '1px dashed #041632' }}>👤 {user.fullName.toUpperCase()}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ color: '#041632', fontWeight: '800' }}>👤 {user.fullName.toUpperCase()}</span>
+                <span style={{ color: '#ccc' }}>|</span>
+                
+                {/* 🎯 PROFİL BUTONU TAM BURAYA ENJEKTE EDİLDİ KANKA */}
+                <button 
+                  onClick={() => navigate('/profile')} 
+                  style={{ border: '2px solid #041632', backgroundColor: '#e6f7ff', color: '#041632', cursor: 'pointer', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', padding: '4px 8px', boxShadow: '2px 2px 0px 0px #041632', transition: 'all 0.1s ease' }}
+                  onMouseDown={(e) => e.currentTarget.style.transform = 'translate(1px, 1px)'}
+                  onMouseUp={(e) => e.currentTarget.style.transform = 'none'}
+                >
+                  PROFIL AYARLARIM
+                </button>
+                
                 <span style={{ color: '#ccc' }}>|</span>
                 <button onClick={() => { logout(); navigate('/'); }} style={{ border: 'none', backgroundColor: 'transparent', color: '#ff3333', cursor: 'pointer', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', padding: 0 }}>ÇIKIŞ YAP</button>
               </div>
@@ -434,12 +445,11 @@ export default function Inquiry() {
         </section>
       </main>
 
-      {/* 🛡️ %100 SİMETRİK VE ORTALANMIŞ MÜHÜRLÜ GİRİŞ MODALI ✅ */}
+      {/* 🛡️ %100 SİMETRİK VE ORTALANMIŞ MÜHÜRLÜ GİRİŞ MODAL KANALLARI ✅ */}
       {showAuthModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(4, 22, 50, 0.4)', backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: '#ffffff', border: '3px solid #041632', padding: '32px', maxWidth: '440px', width: '90%', boxShadow: '6px 6px 0px 0px #041632', position: 'relative', textAlign: 'center' }}>
             
-            {/* Başlık ve İkon - Tamamen Ortalandı */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{ backgroundColor: '#fff3cd', border: '2px solid #041632', padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <AlertTriangle style={{ color: '#041632', width: '20px', height: '20px' }} />
@@ -447,12 +457,10 @@ export default function Inquiry() {
               <h3 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '18px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '-0.02em', margin: 0 }}>GİRİŞ YAPMANIZ GEREKLİ</h3>
             </div>
 
-            {/* Sade ve Ortalanmış Metin */}
             <p style={{ fontSize: '13px', color: '#444', lineHeight: '1.6', marginBottom: '24px', textAlign: 'center' }}>
-              Seçtiğiniz <strong>{pendingPackage?.packageName}</strong> paketine başvuru yapabilmek ve işlemlere devam edebilmek için lütfen önce giriş yapın.
+              Seçtiğiniz <strong>{pendingPackage?.packageName}</strong> paketine başvuru yapabilmek & işlemlere devam edebilmek için lütfen önce giriş yapın.
             </p>
 
-            {/* Butonlar - Tam Ortada ve Hizalı */}
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', alignItems: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700' }}>
               <button 
                 onClick={() => { setShowAuthModal(false); setPendingPackage(null); }}
