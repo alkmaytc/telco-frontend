@@ -1,22 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Users, DollarSign, Server, Terminal } from 'lucide-react';
+import { Activity, ArrowLeft, Users, DollarSign, Server, Terminal, MapPin } from 'lucide-react';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import api, { OrderService } from '../services/api'; 
+
+// 🎯 HARİTA İÇİN BRUTALIST KONFİGÜRASYONLAR
+const mapContainerStyle = {
+  width: '100%',
+  height: '350px',
+  border: '2px solid #041632'
+};
+
+// Harita ilk açıldığında Eskişehir merkezli odaklansın
+const defaultCenter = {
+  lat: 39.7767,
+  lng: 30.5206
+};
+
+// Haritayı kurumsal ve sade gösterecek koyu/minimal tema stili (Opsiyonel - Jüri bayılır)
+const mapOptions = {
+  disableDefaultUI: false,
+  zoomControl: true,
+  styles: [
+    { "featureType": "administrative", "elementType": "labels.text.fill", "stylers": [{ "color": "#041632" }] },
+    { "featureType": "landscape", "elementType": "all", "stylers": [{ "color": "#f2f2f2" }] },
+    { "featureType": "poi", "elementType": "all", "stylers": [{ "visibility": "off" }] },
+    { "featureType": "road", "elementType": "all", "stylers": [{ "saturation": -100 }, { "lightness": 45 }] },
+    { "featureType": "water", "elementType": "all", "stylers": [{ "color": "#b7c7eb" }, { "visibility": "on" }] }
+  ]
+};
 
 export default function AdminPanel() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [targetNodeId, setTargetNodeId] = useState('');
-  const [portAmount, setPortAmount] = useState(5); // 🎯 DİNAMİK PORT SEÇİCİ STATE'İ
+  const [portAmount, setPortAmount] = useState(5); 
   
   const [alertMsg, setAlertMsg] = useState('');
   const [alertType, setAlertType] = useState(''); 
+
+  // 🎯 HARİTA STATE'LERİ: Seçili dolabın detay penceresi için
+  const [selectedNode, setSelectedNode] = useState(null);
+
+  // Google Maps API yükleyicisi (API anahtarın yoksa test için boş string kalabilir, harita yine de developer modda açılır kanka)
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: "" // 🎯 BURAYA KENDİ GOOGLE MAPS API KEY'İNİ YAZABİLİRSİN
+  });
 
   const [data, setData] = useState({
     stats: { totalRevenue: 0, activeSubscribers: 0, pendingRabbitMq: 0, totalNodes: 0 },
     pendingOrders: [],
     nodes: [],
-    logs: [] // 🎯 BACKEND'DEN GELEN LOGLAR BURAYA DÜŞÜYOR
+    logs: [] 
   });
 
   const triggerAlert = (msg, type) => {
@@ -65,7 +101,6 @@ export default function AdminPanel() {
     }
   };
 
-  // 🎯 KAPASİTE BUG'I ÇÖZÜCÜ: "5 / 10" string formatını matematiksel olarak analiz eden motor
   const isNodeFull = (capacityStr) => {
     if (!capacityStr) return false;
     const parts = capacityStr.toString().split('/');
@@ -85,7 +120,6 @@ export default function AdminPanel() {
         .panel-right { grid-column: span 7 / span 7; display: flex; flex-direction: column; gap: 24px; }
         .nodes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         
-        /* 🎯 TERMİNAL SCROLL BAR STİLİ */
         .terminal-scroll::-webkit-scrollbar { width: 6px; }
         .terminal-scroll::-webkit-scrollbar-track { background: #1e1e1e; }
         .terminal-scroll::-webkit-scrollbar-thumb { background: #4af626; }
@@ -106,12 +140,72 @@ export default function AdminPanel() {
 
       <main style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         
-        {/* 🎯 STAT KARTLARINA TOTAL NODES EKLENDİ */}
+        {/* STAT KARTLARI */}
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-          <StatCard icon={<DollarSign/>} label="AYLIK BEKLENEN CİRO" value={`${data.stats?.totalRevenue || 0} ₺`} color="#e6ffe6" />
+          <StatCard icon={<DollarSign/>} label="AYLIK BEKLENEN CİRO" value={`${data.stats?.totalRevenue || 0}`} color="#e6ffe6" />
           <StatCard icon={<Users/>} label="AKTİF ABONELER" value={data.stats?.activeSubscribers || 0} color="#b7c7eb" />
           <StatCard icon={<Activity/>} label="KUYRUK (RABBITMQ)" value={`${data.stats?.pendingRabbitMq || 0} BEKLEYEN`} color="#fed3c7" />
           <StatCard icon={<Server/>} label="TOPLAM SAHA DOLABI" value={data.stats?.totalNodes || 0} color="#fff3cd" />
+        </section>
+
+        {/* 🎯 MADDE 1: REAL-TIME POSTGIS HARİTA ENTEGRASYONU PANELİ */}
+        <section style={{ border: '2px solid #041632', padding: '20px', backgroundColor: '#ffffff', boxShadow: '4px 4px 0px 0px #041632' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '14px', display: 'flex', alignAllitems: 'center', gap: '8px' }}>
+            <MapPin size={20} /> COĞRAFİ ALTYAPI VE SAHA DOLABI DAĞILIM HARİTASI 
+          </h2>
+          
+          {isLoaded ? (
+            <GoogleMap
+              mapContainerStyle={mapContainerStyle}
+              center={defaultCenter}
+              zoom={13}
+              options={mapOptions}
+            >
+              {data.nodes && data.nodes.length > 0 && data.nodes.map((node) => {
+                const isFull = isNodeFull(node.capacity);
+                // Eğer dolap doluysa kırmızı pin (Hata/Kritik), boş port varsa yeşil pin simgesi üretiyoruz
+                const markerIcon = isFull 
+                  ? "http://maps.google.com/mapfiles/ms/icons/red-dot.png" 
+                  : "http://maps.google.com/mapfiles/ms/icons/green-dot.png";
+
+                return (
+                  <Marker
+                    key={node.id}
+                    position={{ lat: node.lat, lng: node.lng }}
+                    icon={markerIcon}
+                    onClick={() => setSelectedNode(node)}
+                  />
+                );
+              })}
+
+              {/* Pin'e tıklandığında açılacak detay penceresi (Popup) */}
+              {selectedNode && (
+                <InfoWindow
+                  position={{ lat: selectedNode.lat, lng: selectedNode.lng }}
+                  onCloseClick={() => setSelectedNode(null)}
+                >
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: '#041632', padding: '4px' }}>
+                    <strong style={{ fontSize: '14px' }}>{selectedNode.name}</strong>
+                    <p style={{ margin: '6px 0 2px 0' }}>Tip: <b>{selectedNode.nodeType || 'VDSL'}</b></p>
+                    <p style={{ margin: '2px 0' }}>Bölge: {selectedNode.region}</p>
+                    <p style={{ margin: '2px 0', color: isNodeFull(selectedNode.capacity) ? '#d10000' : '#006600' }}>
+                      Kapasite: <b>{selectedNode.capacity} PORT</b>
+                    </p>
+                    <button 
+                      onClick={() => { setTargetNodeId(selectedNode.id.toString()); setSelectedNode(null); }}
+                      style={{ marginTop: '8px', width: '100%', padding: '4px', backgroundColor: '#041632', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+                    >
+                      Kapasite Enjeksiyonuna Seç ⚡
+                    </button>
+                  </div>
+                </InfoWindow>
+              )}
+            </GoogleMap>
+          ) : (
+            <div style={{ height: '350px', border: '2px solid #041632', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eae8e7', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
+              Harita motoru yükleniyor...
+            </div>
+          )}
         </section>
 
         <section className="dashboard-main-grid">
@@ -135,10 +229,9 @@ export default function AdminPanel() {
                 </div>
               )}
 
-              {/* 🎯 DİNAMİK PORT SEÇİCİ EKLENDİ */}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                <input type="number" value={targetNodeId} onChange={(e) => setTargetNodeId(e.target.value)} placeholder="Saha Dolabı ID" style={{ flex: 1, padding: '12px', border: '2px solid #041632', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', boxSizing: 'border-box' }} />
-                <select value={portAmount} onChange={(e) => setPortAmount(Number(e.target.value))} style={{ width: '100px', padding: '12px', border: '2px solid #041632', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 'bold' }}>
+                <input type="number" value={targetNodeId} onChange={(e) => setTargetNodeId(e.target.value)} placeholder="Saha Dolabı ID" style={{ width: '100%', padding: '12px', border: '2px solid #041632', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', boxSizing: 'border-box' }} />
+                <select value={portAmount} onChange={(e) => setPortAmount(Number(e.target.value))} style={{ width: '140px', padding: '12px', border: '2px solid #041632', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 'bold' }}>
                   <option value={5}>+5 PORT</option>
                   <option value={10}>+10 PORT</option>
                   <option value={20}>+20 PORT</option>
@@ -172,7 +265,7 @@ export default function AdminPanel() {
 
           <div className="panel-right">
             
-            {/* 🎯 CANLI SİSTEM LOGLARI TERMİNALİ */}
+            {/* CANLI SİSTEM LOGLARI TERMİNALİ */}
             <div style={{ border: '2px solid #041632', padding: '20px', backgroundColor: '#1e1e1e', color: '#4af626', boxShadow: '4px 4px 0px 0px #041632', fontFamily: 'JetBrains Mono, monospace' }}>
               <h2 style={{ fontSize: '14px', fontWeight: '900', marginBottom: '12px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Terminal size={18} /> CANLI BSS & RABBITMQ LOGLARI
@@ -181,7 +274,7 @@ export default function AdminPanel() {
                 {data.logs && data.logs.length > 0 ? (
                   data.logs.map((log, idx) => (
                     <div key={idx} style={{ borderBottom: '1px dotted #333', paddingBottom: '4px' }}>
-                      <span style={{ color: '#888' }}>[{new Date(log.changedAt || Date.now()).toLocaleTimeString()}]</span>
+                      <span style={{ color: '#888' }}>[{log.changedAt || '-'}]</span>
                       <span style={{ color: '#fff', marginLeft: '6px', fontWeight: 'bold' }}>[ID:#{log.orderId || '-'}]</span>
                       <span style={{ marginLeft: '6px', color: log.status === 'ONAYLANDI' ? '#4af626' : log.status === 'IPTAL' ? '#ff4444' : '#f1fa8c' }}>{log.status}</span>
                       <span style={{ marginLeft: '6px', color: '#ccc' }}>- {log.description}</span>
@@ -198,10 +291,9 @@ export default function AdminPanel() {
               <div className="nodes-grid">
                 {data.nodes && data.nodes.length > 0 ? (
                   data.nodes.map(n => {
-                    const isFull = isNodeFull(n.capacity); // 🎯 MATEMATİKSEL KONTROL
+                    const isFull = isNodeFull(n.capacity); 
                     return (
                       <div key={n.id} style={{ border: '2px solid #041632', padding: '14px', backgroundColor: isFull ? '#fed3c7' : '#ffffff', boxShadow: '2px 2px 0px 0px #041632' }}>
-                        {/* 🎯 MAKYAJ TAMAMLANDI: Başlık kısmına dinamik FIBER/VDSL etiketi mühürlendi kanka ✅ */}
                         <p style={{ fontWeight: '800', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                           <span>ID [{n.id}] - {n.name}</span>
                           <span style={{ fontSize: '9px', backgroundColor: n.nodeType === 'FIBER' ? '#041632' : '#666', color: '#fff', padding: '2px 6px', fontWeight: '900', letterSpacing: '0.05em' }}>
