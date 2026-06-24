@@ -42,10 +42,10 @@ export default function AdminPanel() {
   // 🎯 HARİTA STATE'LERİ: Seçili dolabın detay penceresi için
   const [selectedNode, setSelectedNode] = useState(null);
 
-  // Google Maps API yükleyicisi (API anahtarın yoksa test için boş string kalabilir, harita yine de developer modda açılır kanka)
+  // 🎯 MADDE 4 ÇÖZÜMÜ: API Key artık şifreli kasadan ( .env ) çekiliyor! Zafiyet kapatıldı. ✅
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: "" // 🎯 BURAYA KENDİ GOOGLE MAPS API KEY'İNİ YAZABİLİRSİN
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY 
   });
 
   const [data, setData] = useState({
