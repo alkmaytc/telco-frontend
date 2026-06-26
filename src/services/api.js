@@ -121,4 +121,12 @@ export const UserService = {
   }
 };
 
+// 📊 5. ADMIN PANEL İŞLEMLERİ (AdminController) - 🎯 YENİ EKLENDİ
+export const AdminService = {
+  getDashboard: async () => {
+    const response = await api.get('/admin/dashboard');
+    return response.data;
+  }
+};
+
 export default api;

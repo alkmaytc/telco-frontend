@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, ArrowLeft, Users, DollarSign, Server, Terminal, MapPin } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
-import api, { OrderService } from '../services/api'; 
+import { OrderService, AdminService } from '../services/api'; // 🎯 ÇÖZÜM: Ham api uçuruldu, AdminService eklendi!
 
 // 🎯 HARİTA İÇİN BRUTALIST KONFİGÜRASYONLAR
 const mapContainerStyle = {
@@ -66,9 +66,10 @@ export default function AdminPanel() {
 
   const fetchDashboard = async () => {
     try {
-      const response = await api.get('/admin/dashboard'); 
-      if (response && response.data) {
-        setData(response.data);
+      // 🎯 ÇÖZÜM: Ham api.get çağrısı silindi, merkezi AdminService kullanıldı! ✅
+      const responseData = await AdminService.getDashboard(); 
+      if (responseData) {
+        setData(responseData);
       }
     } catch (err) {
       console.error("Dashboard verisi alınamadı:", err);
@@ -132,7 +133,7 @@ export default function AdminPanel() {
         <button onClick={() => navigate('/')} style={{ border: '2px solid #041632', backgroundColor: 'transparent', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <ArrowLeft style={{ width: '16px', height: '16px' }} />
         </button>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: '800', letterSpacing: '-0.05em' }} onClick={() => navigate('/')}>tel-co</span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: '800', letterSpacing: '-0.05em', cursor: 'pointer' }} onClick={() => navigate('/')}>tel-co</span>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', border: '2px solid #041632', padding: '4px 8px', backgroundColor: '#b7c7eb', fontWeight: '700' }}>
           KORUMALI ALTYAPI YÖNETİM MERKEZİ 🔧
         </span>
@@ -150,7 +151,7 @@ export default function AdminPanel() {
 
         {/* 🎯 MADDE 1: REAL-TIME POSTGIS HARİTA ENTEGRASYONU PANELİ */}
         <section style={{ border: '2px solid #041632', padding: '20px', backgroundColor: '#ffffff', boxShadow: '4px 4px 0px 0px #041632' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '14px', display: 'flex', alignAllitems: 'center', gap: '8px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: '900', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <MapPin size={20} /> COĞRAFİ ALTYAPI VE SAHA DOLABI DAĞILIM HARİTASI 
           </h2>
           
@@ -165,8 +166,8 @@ export default function AdminPanel() {
                 const isFull = isNodeFull(node.capacity);
                 // Eğer dolap doluysa kırmızı pin (Hata/Kritik), boş port varsa yeşil pin simgesi üretiyoruz
                 const markerIcon = isFull 
-                  ? "http://maps.google.com/mapfiles/ms/icons/red-dot.png" 
-                  : "http://maps.google.com/mapfiles/ms/icons/green-dot.png";
+                  ? "http://googleusercontent.com/maps.google.com/mapfiles/ms/icons/red-dot.png" 
+                  : "http://googleusercontent.com/maps.google.com/mapfiles/ms/icons/green-dot.png";
 
                 return (
                   <Marker
@@ -238,7 +239,7 @@ export default function AdminPanel() {
                   <option value={50}>+50 PORT</option>
                 </select>
               </div>
-              
+
               <button onClick={handleInjectCapacity} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#041632', color: '#fff', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', border: '2px solid #041632', cursor: 'pointer', boxShadow: '2px 2px 0px 0px #041632' }}>
                 {loading ? 'İŞLENİYOR...' : `SEÇİLİ PORTU ENJEKTE ET ⚡`}
               </button>

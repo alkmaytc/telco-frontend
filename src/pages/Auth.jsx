@@ -1,8 +1,8 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import axios from 'axios'; // 🎯 Bağımlılık hatasını çözmek için doğrudan axios'a çektik kanka
+import { AuthService } from '../services/api'; // 🎯 ÇÖZÜM 1: Ham axios yerine kurumsal servisimizi içeri aldık
 
 export default function Auth() {
   const [isLoginTab, setIsLoginTab] = useState(true);
@@ -19,7 +19,12 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+  // 🛡️ ÇÖZÜM 2: GHOST TOKEN TEMİZLEYİCİ
+  // Dünkü "giriş yapmadan admin'e atma" bug'ını kökten çözen kalkan. Sayfa açıldığı an hafızayı sıfırlar!
+  useEffect(() => {
+    localStorage.removeItem('telco_token');
+    localStorage.removeItem('telco_role');
+  }, []);
 
   // 🚪 1. GİRİŞ YAPMA FONKSİYONU
   const handleLogin = async (e) => {
@@ -28,11 +33,13 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${BASE_URL}/auth/login`, { email, password });
+      // 🎯 ÇÖZÜM 3: Ham axios çağrısı yerine merkezi AuthService kullanıldı
+      const data = await AuthService.login(email, password);
 
-      login(response.data);
+      // api.js zaten response.data döndüğü için direkt data objesini kullanıyoruz
+      login(data);
 
-      if (response.data.role === 'ADMIN') {
+      if (data.role === 'ADMIN') {
         navigate('/admin');
       } else if (redirectTo) {
         const destination = redirectTo;
@@ -45,7 +52,8 @@ export default function Auth() {
       console.error(error);
       setMessage({
         type: 'error',
-        text: error.response?.data?.message || 'E-posta adresi veya şifre hatalı!'
+        // Global Interceptor'dan dönen error mesajını yakalıyoruz
+        text: error.message || (typeof error === 'string' ? error : 'E-posta adresi veya şifre hatalı!')
       });
     } finally {
       setLoading(false);
@@ -62,7 +70,8 @@ export default function Auth() {
     const lng = localStorage.getItem('selected_lng') ? parseFloat(localStorage.getItem('selected_lng')) : null;
 
     try {
-      const response = await axios.post(`${BASE_URL}/auth/register`, {
+      // 🎯 ÇÖZÜM 3: Ham axios yerine AuthService kullanıldı
+      const data = await AuthService.register({
         identityNumber,
         firstName,
         lastName,
@@ -75,7 +84,7 @@ export default function Auth() {
       setMessage({ type: 'success', text: 'KAYIT BAŞARIYLA TAMAMLANDI! OTURUM AÇILIYOR...' });
       
       setTimeout(() => {
-        login(response.data);
+        login(data); // response.data yerine doğrudan data
         if (redirectTo) {
           const destination = redirectTo;
           setRedirectTo(null);
@@ -89,7 +98,7 @@ export default function Auth() {
       console.error(error);
       setMessage({
         type: 'error',
-        text: typeof error.response?.data === 'string' ? error.response.data : 'Kayıt sırasında şebeke veya T.C. kimlik hatası oluştu!'
+        text: error.message || (typeof error === 'string' ? error : 'Kayıt sırasında şebeke veya T.C. kimlik hatası oluştu!')
       });
     } finally {
       setLoading(false);
@@ -97,7 +106,7 @@ export default function Auth() {
   };
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 66px)', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', alignItems: 'center', justifyWith: 'center', display: 'flex', justifyContent: 'center', padding: '24px', fontFamily: 'Hanken Grotesk, sans-serif' }}>
+    <div style={{ minHeight: 'calc(100vh - 66px)', backgroundColor: '#fbf9f8', color: '#041632', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'Hanken Grotesk, sans-serif' }}>
       
       <div style={{ width: '100%', maxWidth: '420px', backgroundColor: '#ffffff', border: '2px solid #041632', padding: '32px', boxShadow: '6px 6px 0px 0px #041632', position: 'relative' }}>
         
